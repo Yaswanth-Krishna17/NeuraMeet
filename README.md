@@ -1,35 +1,48 @@
-# Project Walkthrough - AI-Powered Video Conferencing Application
+# AetherCall AI - Next-Gen Video Conferencing
 
-We have successfully migrated the AI-powered video conferencing project to Next.js 16 with Tailwind CSS v4, integrated with Clerk Authentication and local MongoDB persistence!
-
----
-
-## 🛠️ Changes Implemented
-
-### 1. Project Dependencies and Environment
-- Modified [package.json](file:///c:/Users/lucky/OneDrive/Desktop/Video%20Conference/clerk-nextjs/package.json) to include `mongoose`, `socket.io`, `socket.io-client`, `dotenv`, and `express`.
-- Enabled `"type": "module"` for native ES module compilation.
-- Renamed the deprecated `middleware.ts` to [proxy.ts](file:///c:/Users/lucky/OneDrive/Desktop/Video%20Conference/clerk-nextjs/proxy.ts) per Next.js 16 requirements to protect routes.
-
-### 2. Database and Content Moderation
-- Created [lib/db.js](file:///c:/Users/lucky/OneDrive/Desktop/Video%20Conference/clerk-nextjs/lib/db.js) containing schemas for `User` and `Meeting` and persistent connection wrappers to prevent socket leaks.
-- Created [lib/moderator.js](file:///c:/Users/lucky/OneDrive/Desktop/Video%20Conference/clerk-nextjs/lib/moderator.js) carrying the leet-speak profanity mapping, tokenized word matches, and punctuation bypass filters.
-
-### 3. Custom Server and WebSocket signaling
-- Created [server.js](file:///c:/Users/lucky/OneDrive/Desktop/Video%20Conference/clerk-nextjs/server.js) to spin up Next.js inside an Express wrapper.
-- Integrated Socket.io signaling to handle multi-peer WebRTC connections, chat and speech transcript filters, warning indicators, eviction triggers (strikes), and rolling participant focus scoring updates.
-
-### 4. Custom Frontend Pages
-- Replaced the homepage [app/page.tsx](file:///c:/Users/lucky/OneDrive/Desktop/Video%20Conference/clerk-nextjs/app/page.tsx) with a premium neon dark-mode theme, detailing the core features and utilizing Clerk's `<Show>` tags.
-- Created the dashboard page [app/dashboard/page.tsx](file:///c:/Users/lucky/OneDrive/Desktop/Video%20Conference/clerk-nextjs/app/dashboard/page.tsx) and layout for user sync triggers, username-validated meeting scheduling, and live WebRTC call invitation toast cards.
-- Created the dynamic meeting room page [app/meetings/[id]/page.tsx](file:///c:/Users/lucky/OneDrive/Desktop/Video%20Conference/clerk-nextjs/app/meetings/%5Bid%5D/page.tsx) and its corresponding interactive client component [MeetingRoomClient.tsx](file:///c:/Users/lucky/OneDrive/Desktop/Video%20Conference/clerk-nextjs/app/meetings/%5Bid%5D/MeetingRoomClient.tsx) incorporating WebRTC RTCPeerConnections, browser-native SpeechRecognition, and MediaPipe dynamic loading.
+AetherCall AI is an advanced, secure, and engagement-focused video conferencing platform designed to solve real-world security and participant retention issues. Utilizing Client-Side AI/ML, Speech-to-Text transcription, and Linkless authorization, AetherCall provides a robust alternative to traditional meeting platforms like Zoom or Microsoft Teams.
 
 ---
 
-## ⚡ How to Run and Test Locally
+## 🚀 Key Innovative Features
 
-### 1. Configure the Environment
-Ensure your `.env.local` file is populated with valid Clerk environment keys:
+### 1. AI Focus Detection & Telemetry
+AetherCall tracks active participant attention dynamically.
+* **Computer Vision Tracking:** Loads Google MediaPipe's Face Mesh from CDN to analyze landmarks locally in the browser. It calculates the **Eye Aspect Ratio (EAR)** for blink/drowsiness rates, facial ratios for head pose changes (yaw and pitch), and iris coordinates for gaze drift.
+* **Host Alerts:** If the rolling average attention score of all participants collapses below 50%, a glowing alert banner (*"Please change your environment"*) is triggered on the host's screen to prompt style adjustments.
+* **Camera-Off Workaround:** When a user turns their camera "off", the application continues running the capture stream in a hidden canvas background to compute attention telemetry locally. The visual feed is never transmitted to other participants.
+* **Non-Camera Fallback:** If camera access is blocked entirely, the platform falls back to window focus/blur hooks, Page Visibility APIs (tab changes), and mouse/keyboard activity tracking.
+
+### 2. Direct Linkless Meetings
+To eliminate the threat of **Zoombombing** (where uninvited third parties crash meetings using shared links), AetherCall removes external meeting URLs entirely.
+* **Username-based Invites:** Meetings are scheduled directly by inputting verified usernames.
+* **In-App Signaling Toasts:** When a host starts a meeting, invited users who are online receive a real-time sliding notification card on their dashboard to join instantly.
+* **Access Control:** The server enforces strict validation checks. Only authenticated Clerk accounts belonging to the host or explicit guest list can access the room path.
+
+### 3. Speech & Text Swearing Moderation
+AetherCall incorporates real-time chat and audio moderation to ensure a professional and respectful environment.
+* **Chat Swearing Filters:** Leverages a leet-speak normalization engine and regex blacklist. Censors offensive terms in chat messages dynamically (`🚫 [CENSORED]`).
+* **Verbal Swearing Detection:** Utilizes browser-native continuous Web Speech STT API to transcribe spoken audio streams.
+* **Automated Eviction:** Violating policies (speaking or typing blacklisted terms) issues a private Strike Warning. Reaching **3 strikes** triggers an immediate, secure server-side eviction from the call.
+
+---
+
+## 🛠️ Technological Architecture
+
+* **Framework:** Next.js 16 (Turbopack) & React 19
+* **Styles:** Tailwind CSS v4 (Glassmorphism design, pulsing telemetry indicators, responsive layouts)
+* **Auth:** Clerk v7 Authentication (with automated redirect hooks on landing)
+* **Database:** MongoDB & Mongoose (meeting schedules, guest configurations, synced profiles)
+* **Real-time:** Custom Express server with Socket.io (multi-peer WebRTC mesh handshakes, signaling relay, live notifications, focus aggregates, moderation booting)
+* **AI Engine:** Google MediaPipe Face Mesh & Web Speech API
+
+---
+
+## 📦 Getting Started
+
+### 1. Prerequisite Configuration
+Ensure you have a local **MongoDB** service running, and configure your `.env.local` file at the root:
+
 ```env
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
@@ -38,27 +51,16 @@ NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
 MONGODB_URI=mongodb://localhost:27017/ai-video-conference
 ```
 
-### 2. Startup Server
-Run the development server script (which boots our custom `server.js` containing WebSockets and Next.js):
+### 2. Install Dependencies
+```bash
+cd clerk-nextjs
+npm install
+```
+
+### 3. Start Development Server
+This boots our custom `server.js` wrapper containing the Node.js WebSocket backend and the Next.js frontend:
 ```bash
 npm run dev
 ```
 
-### 3. Verification Guidelines
-
-#### Feature 1: Focus Detection & Camera-Off Fallback
-- Enter a meeting room. Allow camera access.
-- Note the cyan/emerald face landmark mesh drawn over your video.
-- Test eye closing/drowsiness (EAR < 0.15 for >2 seconds) and head turning; check that your focus score decays.
-- Click **"Turn Camera Off"**. Notice that your video disappears from the screen (and won't be broadcast to peers), but the background camera capture continues computing facial statistics locally, updating your focus score in real-time.
-- If you block camera access entirely, check that focus tracking transitions to window focus/blur, tab switches, and mouse/keyboard activity.
-
-#### Feature 2: Linkless Meetings
-- Schedule a meeting on your dashboard. Try typing an invalid username; verify that a validation warning prevents creation.
-- Once created, check that the invited user (if logged into their dashboard) instantly receives a floating alert toast to join the room.
-- Try accessing a meeting ID directly using a non-invited user account; verify that access is blocked and you are redirected to `/dashboard`.
-
-#### Feature 3: Abusive Language Moderation
-- Swear in chat; check that the message gets replaced with `🚫 [CENSORED - Abusive Language Flagged]` and you receive a strike warnings overlay.
-- Toggle **"Audio Moderation"**. Speak blacklisted terms into your mic (e.g. in Chrome/Edge); verify that real-time transcription triggers warnings.
-- Check that reaching 3 strikes boots you to the dashboard.
+Open [http://localhost:3000](http://localhost:3000) to access the application.
