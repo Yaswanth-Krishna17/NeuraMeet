@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
-import SplashCursor from '@/components/SplashCursor'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -29,17 +28,6 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ClerkProvider>
           {children}
-          <SplashCursor
-            SIM_RESOLUTION={160}
-            DYE_RESOLUTION={166}
-            DENSITY_DISSIPATION={3.5}
-            VELOCITY_DISSIPATION={2}
-            PRESSURE={0.3}
-            CURL={6}
-            SPLAT_RADIUS={0.4}
-            SPLAT_FORCE={6000}
-            COLOR_UPDATE_SPEED={10}
-          />
         </ClerkProvider>
       </body>
     </html>
