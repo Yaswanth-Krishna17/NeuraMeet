@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Show, SignInButton, SignUpButton } from '@clerk/nextjs';
+import { Show } from '@clerk/nextjs';
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 
@@ -24,16 +24,18 @@ export default async function Home() {
 
         <nav className="flex items-center gap-4">
           <Show when="signed-out">
-            <SignInButton mode="modal">
-              <button className="text-sm font-semibold text-slate-300 hover:text-white cursor-pointer transition-colors px-4 py-2">
-                Sign In
-              </button>
-            </SignInButton>
-            <SignUpButton mode="modal">
-              <button className="text-sm font-semibold px-5 py-2.5 rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-600/35 hover:bg-indigo-500 transition-all cursor-pointer">
-                Create Account
-              </button>
-            </SignUpButton>
+            <Link
+              href="/sign-in"
+              className="text-sm font-semibold text-slate-300 hover:text-white transition-colors px-4 py-2"
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/sign-up"
+              className="text-sm font-semibold px-5 py-2.5 rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-600/35 hover:bg-indigo-500 transition-all"
+            >
+              Create Account
+            </Link>
           </Show>
           <Show when="signed-in">
             <Link href="/dashboard" className="text-sm font-semibold px-5 py-2.5 rounded-full bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white transition-all cursor-pointer">
@@ -63,11 +65,12 @@ export default async function Home() {
               </Link>
             </Show>
             <Show when="signed-out">
-              <SignInButton mode="modal">
-                <button className="px-8 py-4 rounded-full glowing-button text-white font-bold text-lg shadow-lg cursor-pointer">
-                  Get Started Free
-                </button>
-              </SignInButton>
+              <Link
+                href="/sign-up"
+                className="px-8 py-4 rounded-full glowing-button text-white font-bold text-lg shadow-lg"
+              >
+                Get Started Free
+              </Link>
             </Show>
             <a href="#features" className="px-8 py-4 rounded-full bg-slate-900 border border-slate-800 text-slate-300 font-semibold text-lg hover:bg-slate-850 hover:text-white transition-all">
               Learn More

@@ -42,6 +42,7 @@ export default function DashboardPage() {
   const [inviteeError, setInviteeError] = useState('');
   const [schedulingSuccess, setSchedulingSuccess] = useState(false);
   const [creatingMeeting, setCreatingMeeting] = useState(false);
+  const [syncError, setSyncError] = useState('');
 
   // Live Invitation Notification Toast State
   const [activeInvite, setActiveInvite] = useState<{
@@ -61,8 +62,10 @@ export default function DashboardPage() {
       const res = await syncUserAction();
       if (res.success && res.user) {
         setProfile(res.user);
+        setSyncError('');
       } else {
         console.error('Clerk Profile Sync failed:', res.error);
+        setSyncError(res.error || 'Failed to connect to database. Check your MongoDB Atlas password in .env.local');
       }
     };
 
@@ -183,11 +186,35 @@ export default function DashboardPage() {
     setCreatingMeeting(false);
   };
 
-  if (!isLoaded || !profile) {
+  if (!isLoaded) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         <span className="text-sm font-semibold text-slate-400">Loading your secure profile...</span>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 max-w-md mx-auto text-center px-6">
+        <div className="w-14 h-14 rounded-full bg-rose-950/50 border border-rose-900 flex items-center justify-center text-rose-400 text-2xl">
+          !
+        </div>
+        <h2 className="text-lg font-bold text-white">Could not load your profile</h2>
+        <p className="text-sm text-slate-400">
+          {syncError || 'Database connection failed. Replace <db_password> in .env.local with your real MongoDB Atlas password, then restart the server.'}
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-5 py-2.5 rounded-xl glowing-button text-white text-sm font-bold"
+        >
+          Retry
+        </button>
       </div>
     );
   }
