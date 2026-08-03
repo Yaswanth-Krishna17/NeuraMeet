@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'AetherCall AI Video Conference',
+  title: 'NeuraMeet AI Video Conference',
   description: 'AI-powered engagement and secure linkless meetings platform.',
 }
 

@@ -1,26 +1,26 @@
-# AetherCall AI - Next-Gen Video Conferencing
+# NeuraMeet AI - Next-Gen Video Conferencing
 
-AetherCall AI is an advanced, secure, and engagement-focused video conferencing platform designed to solve real-world security and participant retention issues. Utilizing Client-Side AI/ML, Speech-to-Text transcription, and Linkless authorization, AetherCall provides a robust alternative to traditional meeting platforms like Zoom or Microsoft Teams.
+NeuraMeet AI is an advanced, secure, and engagement-focused video conferencing platform designed to solve real-world security and participant retention issues. Utilizing Client-Side AI/ML, Speech-to-Text transcription, and Linkless authorization, NeuraMeet provides a robust alternative to traditional meeting platforms like Zoom or Microsoft Teams.
 
 ---
 
 ## 🚀 Key Innovative Features
 
 ### 1. AI Focus Detection & Telemetry
-AetherCall tracks active participant attention dynamically.
+NeuraMeet tracks active participant attention dynamically.
 * **Computer Vision Tracking:** Loads Google MediaPipe's Face Mesh from CDN to analyze landmarks locally in the browser. It calculates the **Eye Aspect Ratio (EAR)** for blink/drowsiness rates, facial ratios for head pose changes (yaw and pitch), and iris coordinates for gaze drift.
 * **Host Alerts:** If the rolling average attention score of all participants collapses below 50%, a glowing alert banner (*"Please change your environment"*) is triggered on the host's screen to prompt style adjustments.
 * **Camera-Off Workaround:** When a user turns their camera "off", the application continues running the capture stream in a hidden canvas background to compute attention telemetry locally. The visual feed is never transmitted to other participants.
 * **Non-Camera Fallback:** If camera access is blocked entirely, the platform falls back to window focus/blur hooks, Page Visibility APIs (tab changes), and mouse/keyboard activity tracking.
 
 ### 2. Direct Linkless Meetings
-To eliminate the threat of **Zoombombing** (where uninvited third parties crash meetings using shared links), AetherCall removes external meeting URLs entirely.
+To eliminate the threat of **Zoombombing** (where uninvited third parties crash meetings using shared links), NeuraMeet removes external meeting URLs entirely.
 * **Username-based Invites:** Meetings are scheduled directly by inputting verified usernames.
 * **In-App Signaling Toasts:** When a host starts a meeting, invited users who are online receive a real-time sliding notification card on their dashboard to join instantly.
 * **Access Control:** The server enforces strict validation checks. Only authenticated Clerk accounts belonging to the host or explicit guest list can access the room path.
 
 ### 3. Speech & Text Swearing Moderation
-AetherCall incorporates real-time chat and audio moderation to ensure a professional and respectful environment.
+NeuraMeet incorporates real-time chat and audio moderation to ensure a professional and respectful environment.
 * **Chat Swearing Filters:** Leverages a leet-speak normalization engine and regex blacklist. Censors offensive terms in chat messages dynamically (`🚫 [CENSORED]`).
 * **Verbal Swearing Detection:** Utilizes browser-native continuous Web Speech STT API to transcribe spoken audio streams.
 * **Automated Eviction:** Violating policies (speaking or typing blacklisted terms) issues a private Strike Warning. Reaching **3 strikes** triggers an immediate, secure server-side eviction from the call.

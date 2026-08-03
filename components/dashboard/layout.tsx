@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { UserButton } from '@clerk/nextjs';
+import { BrainCircuit } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -13,11 +14,11 @@ export default function DashboardLayout({
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center font-bold text-sm shadow-indigo-500/25">
-                A
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center shadow-indigo-500/25">
+                <BrainCircuit className="w-5 h-5 text-white" />
               </div>
               <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-indigo-200 to-slate-100 bg-clip-text text-transparent">
-                AetherCall
+                NeuraMeet
               </span>
             </Link>
             <span className="text-slate-700">|</span>
