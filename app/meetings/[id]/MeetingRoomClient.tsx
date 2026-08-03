@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Eye, Shield, CheckCircle, AlertTriangle, MessageSquare, Mic, MicOff, Video, VideoOff, BarChart2 } from 'lucide-react';
+import { Eye, Shield, CheckCircle, AlertTriangle, MessageSquare, Mic, MicOff, Video, VideoOff, BarChart2, Users, Clock } from 'lucide-react';
 
 interface MeetingDetails {
   id: string;
@@ -51,6 +51,7 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [micEnabled, setMicEnabled] = useState(true);
   const [camEnabled, setCamEnabled] = useState(true);
+  const [sidebarTab, setSidebarTab] = useState<'chat' | 'participants'>('chat');
 
   // WebRTC Senders to dynamically add/remove tracks
   const videoSendersRef = useRef<Map<string, RTCRtpSender>>(new Map()); // targetSocketId -> RTCRtpSender
@@ -767,19 +768,19 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
   };
 
   return (
-    <div className="min-h-screen bg-[#06070a] bg-mesh text-slate-100 flex flex-col font-sans relative">
+    <div className="min-h-screen bg-[#09090B] bg-mesh text-slate-100 flex flex-col font-sans relative">
       
       {/* 1. Header Area */}
-      <header className="h-16 border-b border-slate-900 px-6 flex items-center justify-between bg-[#0a0c10]/70 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex flex-col">
+      <header className="h-16 border-b border-zinc-900 px-6 flex items-center justify-between bg-zinc-950/80 backdrop-blur-md sticky top-0 z-40">
+        <div className="flex flex-col text-left">
           <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-400">Secure Shield Room</span>
-          <h2 className="text-sm sm:text-base font-extrabold text-white line-clamp-1">{meeting.title}</h2>
+          <h2 className="text-sm font-extrabold text-white line-clamp-1 mt-0.5">{meeting.title}</h2>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[10px] sm:text-xs font-semibold px-2.5 py-1 bg-slate-950 border border-slate-900 rounded-full text-slate-400">
+          <span className="text-[10px] font-mono font-bold px-2.5 py-1 bg-zinc-900 border border-zinc-850 rounded-md text-zinc-400">
             Room ID: {meeting.id}
           </span>
-          <span className="text-[10px] sm:text-xs font-semibold px-2.5 py-1 bg-indigo-950/40 border border-indigo-900/40 rounded-full text-indigo-300">
+          <span className="text-[10px] font-bold px-2.5 py-1 bg-indigo-950/40 border border-indigo-900/30 rounded-md text-indigo-300">
             Host: @{meeting.host}
           </span>
         </div>
@@ -793,13 +794,13 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
           
           {/* Host distraction banner */}
           {isHost && hostAvgFocus < 50 && hostParticipantCount > 0 && (
-            <div className="w-full glass-panel bg-rose-950/60 border border-rose-900 p-4 rounded-2xl flex items-center gap-4 shadow-xl shadow-rose-900/10 animate-bounce">
-              <div className="w-10 h-10 rounded-full bg-rose-900/60 flex items-center justify-center text-rose-400 text-lg font-bold">
-                ⚠️
+            <div className="w-full bg-red-950/20 border border-red-900/60 p-4 rounded-xl flex items-center gap-4 shadow-sm animate-bounce text-left">
+              <div className="w-9 h-9 rounded-lg bg-red-900/40 flex items-center justify-center text-red-400">
+                <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="flex flex-col flex-1">
-                <span className="text-xs font-bold text-rose-400 uppercase tracking-wider">Low Participant Engagement Alert</span>
-                <span className="text-sm font-semibold text-white mt-0.5">"Please change your environment" (average attention has collapsed to {hostAvgFocus}%)</span>
+                <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Low Participant Engagement Alert</span>
+                <span className="text-xs font-semibold text-white mt-0.5">Please change your environment (average attention has collapsed to {hostAvgFocus}%)</span>
               </div>
             </div>
           )}
@@ -808,7 +809,7 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
           <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
             
             {/* A. Local video user container */}
-            <div className={`glass-panel rounded-2xl relative overflow-hidden flex items-center justify-center ${
+            <div className={`bg-zinc-950 border border-zinc-900 rounded-xl relative overflow-hidden flex items-center justify-center ${
               getPeerFocusClass(focusScore)
             }`}>
               {/* MediaStream Preview element */}
@@ -823,10 +824,10 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
               {/* Avatar placeholder card */}
               {(!camEnabled || !localStream || localStream.getVideoTracks().length === 0) && (
                 <div className="flex flex-col items-center justify-center gap-3">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-500 flex items-center justify-center text-white text-2xl font-bold uppercase shadow-lg">
+                  <div className="w-14 h-14 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 text-xl font-bold uppercase shadow-sm">
                     {fullName.charAt(0)}
                   </div>
-                  <span className="text-xs text-slate-400 font-semibold">Your camera is turned off</span>
+                  <span className="text-[11px] text-zinc-500 font-semibold">Your camera is turned off</span>
                 </div>
               )}
 
@@ -839,12 +840,12 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
               )}
 
               {/* Overlay labels */}
-              <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between z-20">
+              <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between z-20 text-left">
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-white">@{username} (You)</span>
-                  <span className="text-[10px] text-slate-400 mt-0.5">Focus status: {getPeerFocusStatusText(focusScore)}</span>
+                  <span className="text-[10px] text-zinc-400 mt-0.5">Focus status: {getPeerFocusStatusText(focusScore)}</span>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-black/60 border border-slate-900 text-indigo-400 flex items-center gap-1">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-indigo-400 flex items-center gap-1">
                   <Eye className="w-3.5 h-3.5" />
                   <span>Focus: {focusScore}%</span>
                 </span>
@@ -862,7 +863,7 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
               return (
                 <div 
                   key={peer.socketId}
-                  className={`glass-panel rounded-2xl relative overflow-hidden flex items-center justify-center ${
+                  className={`bg-zinc-950 border border-zinc-900 rounded-xl relative overflow-hidden flex items-center justify-center ${
                     getPeerFocusClass(currentScore)
                   }`}
                 >
@@ -881,29 +882,29 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
                   {/* Remote Avatar fallback placeholder */}
                   {!hasVideo && (
                     <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 text-2xl font-bold uppercase shadow-lg">
+                      <div className="w-14 h-14 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 text-xl font-bold uppercase shadow-sm">
                         {peer.username.charAt(0)}
                       </div>
-                      <span className="text-xs text-slate-400 font-semibold">Camera turned off</span>
+                      <span className="text-[11px] text-zinc-500 font-semibold">Camera turned off</span>
                     </div>
                   )}
 
                   {/* Remote overlay descriptors */}
-                  <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between z-20">
+                  <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between z-20 text-left">
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-white flex items-center gap-1.5">
                         @{peer.username}
                         {currentStrikes > 0 && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.25 bg-rose-950 border border-rose-800 text-rose-400 rounded">
+                          <span className="text-[9px] font-bold px-1.5 py-0.25 bg-red-950/60 border border-red-900/60 text-red-400 rounded">
                             Strike {currentStrikes}/3
                           </span>
                         )}
                       </span>
-                      <span className="text-[10px] text-slate-400 mt-0.5">Focus: {getPeerFocusStatusText(currentScore)}</span>
+                      <span className="text-[10px] text-zinc-400 mt-0.5">Focus: {getPeerFocusStatusText(currentScore)}</span>
                     </div>
                     {/* Only show scores on grid overlays if user is Host */}
                     {isHost && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-black/60 border border-slate-900 text-indigo-400 flex items-center gap-1">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-indigo-400 flex items-center gap-1">
                         <Eye className="w-3.5 h-3.5" />
                         <span>Focus: {currentScore}%</span>
                       </span>
@@ -923,31 +924,31 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
             style={{ display: 'none' }}
           />
 
-          {/* 3. Host Analytics Sidebar section */}
+          {/* 3. Host Analytics Dashboard section */}
           {isHost && (
-            <div className="glass-panel p-6 rounded-2xl flex flex-col gap-4 border border-indigo-500/10">
-              <h4 className="text-xs font-bold uppercase tracking-widest text-indigo-400 flex items-center gap-2">
+            <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-xl flex flex-col gap-4 text-left">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 flex items-center gap-2">
                 <BarChart2 className="w-4 h-4" />
                 <span>Host Telemetry Dashboard</span>
               </h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-3 bg-slate-950/60 border border-slate-900 rounded-xl">
-                  <span className="text-[10px] text-slate-500 uppercase font-semibold">Student attention</span>
-                  <div className="text-lg sm:text-2xl font-extrabold text-white mt-1">{hostAvgFocus}%</div>
+                <div className="p-3 bg-[#09090B] border border-zinc-900 rounded-lg">
+                  <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-wider">Average attention</span>
+                  <div className="text-lg sm:text-xl font-extrabold text-white mt-1">{hostAvgFocus}%</div>
                 </div>
-                <div className="p-3 bg-slate-950/60 border border-slate-900 rounded-xl">
-                  <span className="text-[10px] text-slate-500 uppercase font-semibold">Invited online</span>
-                  <div className="text-lg sm:text-2xl font-extrabold text-white mt-1">{hostParticipantCount} User(s)</div>
+                <div className="p-3 bg-[#09090B] border border-zinc-900 rounded-lg">
+                  <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-wider">Invited online</span>
+                  <div className="text-lg sm:text-xl font-extrabold text-white mt-1">{hostParticipantCount} User(s)</div>
                 </div>
-                <div className="col-span-2 p-3 bg-slate-950/60 border border-slate-900 rounded-xl flex items-center justify-between gap-4">
+                <div className="col-span-2 p-3 bg-[#09090B] border border-zinc-900 rounded-lg flex items-center justify-between gap-4">
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-slate-500 uppercase font-semibold">Moderation status</span>
-                    <span className="text-xs font-bold text-emerald-400 mt-1 flex items-center gap-1">
-                      <CheckCircle className="w-3.5 h-3.5" />
+                    <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-wider">Moderation status</span>
+                    <span className="text-xs font-bold text-emerald-450 mt-1 flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
                       <span>Moderation Shield Active</span>
                     </span>
                   </div>
-                  <Shield className="w-5 h-5 text-emerald-400" />
+                  <Shield className="w-5 h-5 text-emerald-500" />
                 </div>
               </div>
             </div>
@@ -955,87 +956,136 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
 
         </div>
 
-        {/* Right Chat Sidebar Panel */}
-        <div className={`w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-900 bg-[#0a0c10]/40 backdrop-blur-md flex flex-col justify-between transition-all duration-350 ${
+        {/* Right Tabbed Panel (Chat & Participants) */}
+        <div className={`w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-zinc-900 bg-zinc-950 flex flex-col justify-between transition-all duration-300 relative z-20 ${
           chatCollapsed ? 'lg:w-0 lg:opacity-0 hidden lg:flex' : ''
         }`}>
-          {/* Chat Header */}
-          <div className="p-4 border-b border-slate-900 flex items-center justify-between bg-slate-950/30">
-            <span className="text-sm font-bold text-white flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-indigo-400" />
-              <span>Secure Meeting Chat</span>
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400">
-              {activePeers.length + 1} online
-            </span>
-          </div>
-
-          {/* Message List */}
-          <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-4 max-h-[300px] lg:max-h-[calc(100vh-20rem)] min-h-[200px]">
-            {chatMessages.map((msg, index) => {
-              if (msg.sender === 'SystemAlert') {
-                return (
-                  <div key={index} className="w-full text-center py-1.5 px-3 bg-slate-900/60 border border-slate-850/80 rounded-xl text-slate-400 text-[11px] leading-relaxed">
-                    {msg.text}
-                  </div>
-                );
-              }
-
-              const isMine = msg.sender.toLowerCase() === username.toLowerCase();
-              return (
-                <div 
-                  key={index}
-                  className={`flex flex-col max-w-[80%] gap-1.5 ${isMine ? 'self-end items-end' : 'self-start items-start'}`}
-                >
-                  <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                    <span className="font-semibold text-slate-400">@{msg.sender}</span>
-                    <span>{msg.timestamp}</span>
-                  </div>
-                  
-                  <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
-                    msg.flagged 
-                      ? 'bg-rose-950/40 border border-rose-900/60 text-rose-400 font-medium' 
-                      : isMine
-                      ? 'bg-indigo-600 text-white rounded-br-none shadow-md shadow-indigo-650/10'
-                      : 'bg-slate-900 border border-slate-850/80 text-slate-200 rounded-bl-none'
-                  }`}>
-                    {msg.text}
-                  </div>
-                </div>
-              );
-            })}
-            <div ref={chatBottomRef} />
-          </div>
-
-          {/* Form input submit */}
-          <form onSubmit={handleSendChatMessage} className="p-4 border-t border-slate-900 bg-slate-950/30 flex gap-2">
-            <input 
-              type="text" 
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Send message..."
-              className="flex-grow px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-850 text-xs text-slate-250 focus:outline-none focus:border-indigo-500/60"
-            />
-            <button 
-              type="submit" 
-              className="px-4 rounded-xl bg-indigo-600 hover:bg-indigo-550 text-white font-bold text-xs shadow-md shadow-indigo-650/15 cursor-pointer"
+          {/* Tabs header */}
+          <div className="flex border-b border-zinc-900 bg-zinc-950/40">
+            <button
+              onClick={() => setSidebarTab('chat')}
+              className={`flex-1 py-3.5 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${
+                sidebarTab === 'chat' 
+                  ? 'border-indigo-500 text-white font-extrabold' 
+                  : 'border-transparent text-zinc-500 hover:text-zinc-300'
+              }`}
             >
-              Send
+              Secure Chat
             </button>
-          </form>
+            <button
+              onClick={() => setSidebarTab('participants')}
+              className={`flex-1 py-3.5 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${
+                sidebarTab === 'participants' 
+                  ? 'border-indigo-500 text-white font-extrabold' 
+                  : 'border-transparent text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              Participants ({peerScores.length})
+            </button>
+          </div>
+
+          {/* Active Tab Panel */}
+          {sidebarTab === 'participants' ? (
+            <div className="flex-grow flex flex-col p-4 gap-4 overflow-y-auto max-h-[300px] lg:max-h-[calc(100vh-14rem)]">
+              {peerScores.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-zinc-500">
+                  <Users className="w-5 h-5" />
+                  <span className="text-xs">No active participants</span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {peerScores.map((peer, idx) => (
+                    <div key={idx} className="bg-zinc-900/60 border border-zinc-900 rounded-lg p-3 flex items-center justify-between text-xs text-left">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-bold text-white">@{peer.username}</span>
+                        <span className="text-[10px] text-zinc-500 font-mono">
+                          Strikes: {peer.strikes}/3
+                        </span>
+                      </div>
+                      <span className={`text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded border ${
+                        peer.score < 40 
+                          ? 'bg-red-950/40 border-red-900/40 text-red-400' 
+                          : peer.score < 70
+                          ? 'bg-amber-950/40 border-amber-900/40 text-amber-400'
+                          : 'bg-emerald-950/40 border-emerald-900/40 text-emerald-400'
+                      }`}>
+                        {peer.score}% Focus
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Message List */}
+              <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-4 max-h-[300px] lg:max-h-[calc(100vh-18rem)] min-h-[200px]">
+                {chatMessages.map((msg, index) => {
+                  if (msg.sender === 'SystemAlert') {
+                    return (
+                      <div key={index} className="w-full text-center py-1.5 px-3 bg-zinc-900/40 border border-zinc-850 rounded-lg text-zinc-400 text-[10px] leading-relaxed">
+                        {msg.text}
+                      </div>
+                    );
+                  }
+
+                  const isMine = msg.sender.toLowerCase() === username.toLowerCase();
+                  return (
+                    <div 
+                      key={index}
+                      className={`flex flex-col max-w-[80%] gap-1.5 ${isMine ? 'self-end items-end' : 'self-start items-start'}`}
+                    >
+                      <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                        <span className="font-bold text-zinc-400">@{msg.sender}</span>
+                        <span>{msg.timestamp}</span>
+                      </div>
+                      
+                      <div className={`p-3 rounded-lg text-xs leading-relaxed text-left ${
+                        msg.flagged 
+                          ? 'bg-red-950/30 border border-red-900/50 text-red-400 font-medium' 
+                          : isMine
+                          ? 'bg-indigo-650 text-white'
+                          : 'bg-zinc-900 border border-zinc-850 text-zinc-200'
+                      }`}>
+                        {msg.text}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Chat Input Input */}
+              <form onSubmit={handleSendChatMessage} className="p-4 border-t border-zinc-900 bg-zinc-950 flex gap-2">
+                <input 
+                  type="text" 
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Send message..."
+                  className="flex-grow px-3 py-2 bg-[#09090B] border border-zinc-800 text-xs rounded-lg text-zinc-150 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                />
+                <button 
+                  type="submit" 
+                  className="px-4 rounded-lg bg-indigo-600 hover:bg-indigo-550 text-white font-bold text-xs shadow cursor-pointer transition-all"
+                >
+                  Send
+                </button>
+              </form>
+            </>
+          )}
 
         </div>
 
       </div>
 
       {/* 4. bottom control bar layout */}
-      <footer className="h-20 border-t border-slate-900 bg-[#0a0c10]/90 backdrop-blur-md px-6 flex items-center justify-between z-30">
+      <footer className="h-20 border-t border-zinc-900 bg-zinc-950 px-6 flex items-center justify-between z-30">
         
         {/* Left Status info */}
         <div className="hidden md:flex items-center gap-3">
-          <span className="text-xs font-semibold text-slate-400 flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            Shield Moderation Active
+          <span className="text-xs font-semibold text-zinc-400 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Shield Active
           </span>
         </div>
 
@@ -1045,62 +1095,67 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
           {/* Toggle Mic */}
           <button 
             onClick={toggleMic} 
-            className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-all border cursor-pointer ${
+            className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm transition-all border cursor-pointer ${
               micEnabled 
-                ? 'bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800 hover:text-white' 
-                : 'bg-rose-950 border-rose-900 text-rose-400 hover:bg-rose-900 hover:text-white'
+                ? 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-850 hover:text-white' 
+                : 'bg-red-950/20 border-red-900/60 text-red-400 hover:bg-red-900/30'
             }`}
             title={micEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
+            aria-label={micEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
           >
-            {micEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5 text-rose-400" />}
+            {micEnabled ? <Mic className="w-4.5 h-4.5" /> : <MicOff className="w-4.5 h-4.5 text-red-450" />}
           </button>
 
           {/* Toggle Cam */}
           <button 
             onClick={toggleCam} 
-            className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-all border cursor-pointer ${
+            className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm transition-all border cursor-pointer ${
               camEnabled 
-                ? 'bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800 hover:text-white' 
-                : 'bg-rose-950 border-rose-900 text-rose-400 hover:bg-rose-900 hover:text-white'
+                ? 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-850 hover:text-white' 
+                : 'bg-red-950/20 border-red-900/60 text-red-400 hover:bg-red-900/30'
             }`}
             title={camEnabled ? 'Turn Camera Off' : 'Turn Camera On'}
+            aria-label={camEnabled ? 'Turn Camera Off' : 'Turn Camera On'}
           >
-            {camEnabled ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5 text-rose-400" />}
+            {camEnabled ? <Video className="w-4.5 h-4.5" /> : <VideoOff className="w-4.5 h-4.5 text-red-450" />}
           </button>
 
           {/* Toggle continuous swearing voice moderation (STT) */}
           <button 
             onClick={toggleStt}
-            className={`px-4 h-11 rounded-xl flex items-center gap-2 font-bold text-xs transition-all border cursor-pointer ${
+            className={`px-4 h-10 rounded-lg flex items-center gap-2 font-bold text-xs transition-all border cursor-pointer ${
               sttActive
-                ? 'bg-emerald-950 border-emerald-900 text-emerald-400 hover:bg-emerald-900 hover:text-white shadow-emerald-900/10 shadow-lg'
-                : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                ? 'bg-emerald-950/40 border-emerald-900/50 text-emerald-450 hover:bg-emerald-900/30'
+                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-855 hover:text-zinc-200'
             }`}
             title={sttActive ? 'Deactivate SpeechSwearingModeration' : 'Activate SpeechSwearingModeration'}
+            aria-label={sttActive ? 'Deactivate SpeechSwearingModeration' : 'Activate SpeechSwearingModeration'}
           >
-            <Mic className="w-4 h-4 text-emerald-400" />
+            <Mic className="w-3.5 h-3.5 text-emerald-500" />
             <span>Audio Moderation</span>
-            <span className={`w-2 h-2 rounded-full ${sttActive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-650'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${sttActive ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-700'}`} />
           </button>
 
-          {/* Toggle Chat Panel Visibility */}
+          {/* Toggle Chat Panel Visibility (Mobile) */}
           <button 
             onClick={() => setChatCollapsed(!chatCollapsed)}
-            className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-lg transition-all border cursor-pointer lg:hidden ${
+            className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm transition-all border cursor-pointer lg:hidden ${
               !chatCollapsed 
                 ? 'bg-indigo-950 border-indigo-900 text-indigo-400' 
-                : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'
+                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-850'
             }`}
+            aria-label="Toggle chat panel visibility"
           >
-            <MessageSquare className="w-5 h-5" />
+            <MessageSquare className="w-4.5 h-4.5" />
           </button>
 
-          <div className="w-px h-6 bg-slate-900 hidden sm:block" />
+          <div className="w-px h-5 bg-zinc-900 hidden sm:block" />
 
           {/* Disconnect Leave Button */}
           <button 
             onClick={handleLeaveCall}
-            className="px-5 h-11 rounded-xl bg-rose-600 hover:bg-rose-500 hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold text-xs shadow-md shadow-rose-950/20 transition-all cursor-pointer"
+            className="px-4 h-10 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all cursor-pointer shadow-sm active:scale-[0.98]"
+            aria-label="Leave secure meeting call"
           >
             Leave Meeting
           </button>
@@ -1111,14 +1166,15 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
         <div className="hidden lg:flex items-center">
           <button 
             onClick={() => setChatCollapsed(!chatCollapsed)}
-            className={`px-4 h-11 rounded-xl flex items-center gap-2 font-bold text-xs transition-all border cursor-pointer ${
+            className={`px-4 h-10 rounded-lg flex items-center gap-2 font-bold text-xs transition-all border cursor-pointer ${
               !chatCollapsed 
                 ? 'bg-indigo-950 border-indigo-900 text-indigo-400' 
-                : 'bg-slate-900 border-slate-800 text-slate-450 hover:bg-slate-800 hover:text-slate-200'
+                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-850 hover:text-zinc-200'
             }`}
+            aria-label="Toggle chat panel"
           >
             <span>Meeting Chat</span>
-            <span className={`w-2 h-2 rounded-full ${!chatCollapsed ? 'bg-indigo-400' : 'bg-slate-600'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${!chatCollapsed ? 'bg-indigo-400' : 'bg-zinc-700'}`} />
           </button>
         </div>
 
@@ -1126,25 +1182,14 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
 
       {/* Floating Warnings Toast overlay */}
       {warningToast.visible && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm glass-panel bg-rose-950/70 border-l-4 border-l-rose-500 p-4 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-down">
-          <AlertTriangle className="w-5 h-5 text-rose-400" />
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm bg-red-950 border border-red-900 p-4 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-down text-left">
+          <AlertTriangle className="w-5 h-5 text-red-400" />
           <div className="flex flex-col flex-1">
-            <span className="text-[10px] uppercase font-bold tracking-widest text-rose-400">Content Warning</span>
+            <span className="text-[10px] uppercase font-bold tracking-widest text-red-400">Content Warning</span>
             <span className="text-xs font-semibold text-slate-200 mt-0.5">{warningToast.message}</span>
           </div>
         </div>
       )}
-
-      {/* Animations Helper Styles */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes slide-down {
-          from { transform: translate(-50%, -50px); opacity: 0; }
-          to { transform: translate(-50%, 0); opacity: 1; }
-        }
-        .animate-slide-down {
-          animation: slide-down 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-        }
-      `}} />
     </div>
   );
 }

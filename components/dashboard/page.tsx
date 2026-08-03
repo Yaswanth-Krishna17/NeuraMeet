@@ -243,32 +243,32 @@ export default function DashboardPage() {
     setCreatingMeeting(false);
   };
 
-  // UX loading state: renders an animated layout skeleton instead of only a spinner
+  // UX loading state: renders a flat dashboard skeleton layout matching the redesign
   if (!isLoaded || (!profile && !syncError)) {
     return (
       <div className="flex flex-col gap-8 animate-pulse">
         {/* Header Skeleton */}
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl">
+        <div className="bg-zinc-950 border border-zinc-900 p-6 sm:p-8 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-5 w-full sm:w-auto">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-850 border border-slate-800/85" />
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-zinc-900 border border-zinc-800" />
             <div className="flex flex-col gap-2 flex-grow sm:flex-grow-0">
-              <div className="h-4 w-32 bg-slate-800 rounded" />
-              <div className="h-6 w-48 bg-slate-800 rounded" />
-              <div className="h-3.5 w-36 bg-slate-850 rounded" />
+              <div className="h-4.5 w-32 bg-zinc-900 rounded" />
+              <div className="h-6 w-48 bg-zinc-900 rounded" />
+              <div className="h-3.5 w-36 bg-zinc-900 rounded mt-1" />
             </div>
           </div>
-          <div className="h-10 w-28 bg-slate-850 rounded-xl" />
+          <div className="h-10 w-28 bg-zinc-900 border border-zinc-850 rounded-lg" />
         </div>
 
         {/* Stats Grid Skeleton */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="glass-panel p-5 rounded-2xl flex items-center justify-between">
+            <div key={i} className="bg-zinc-950 border border-zinc-900 p-5 rounded-xl flex items-center justify-between">
               <div className="flex flex-col gap-2">
-                <div className="h-3 w-16 bg-slate-850 rounded" />
-                <div className="h-6 w-10 bg-slate-800 rounded" />
+                <div className="h-3 w-16 bg-zinc-900 rounded" />
+                <div className="h-6 w-10 bg-zinc-900 rounded" />
               </div>
-              <div className="w-10 h-10 rounded-xl bg-slate-850" />
+              <div className="w-9 h-9 rounded-lg bg-zinc-900" />
             </div>
           ))}
         </div>
@@ -277,23 +277,23 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 flex flex-col gap-6">
             <div className="flex items-center justify-between">
-              <div className="h-6 w-48 bg-slate-800 rounded" />
-              <div className="h-5 w-16 bg-slate-850 rounded-full" />
+              <div className="h-6 w-48 bg-zinc-900 rounded" />
+              <div className="h-5 w-16 bg-zinc-900 rounded-full" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="glass-panel p-6 rounded-2xl flex flex-col gap-6">
+                <div key={i} className="bg-zinc-950 border border-zinc-900 p-6 rounded-xl flex flex-col gap-6">
                   <div className="flex flex-col gap-3">
-                    <div className="h-4 w-20 bg-slate-850 rounded" />
-                    <div className="h-6 w-3/4 bg-slate-800 rounded" />
-                    <div className="h-3.5 w-1/2 bg-slate-850 rounded mt-2" />
+                    <div className="h-4 w-20 bg-zinc-900 rounded" />
+                    <div className="h-6 w-3/4 bg-zinc-900 rounded" />
+                    <div className="h-3.5 w-1/2 bg-zinc-900 rounded mt-2" />
                   </div>
-                  <div className="h-10 w-full bg-slate-850 rounded-xl" />
+                  <div className="h-10 w-full bg-zinc-900 border border-zinc-850 rounded-lg" />
                 </div>
               ))}
             </div>
           </div>
-          <div className="glass-panel p-6 rounded-2xl h-[350px] bg-slate-900/40" />
+          <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-xl h-[350px] animate-pulse" />
         </div>
       </div>
     );
@@ -306,16 +306,16 @@ export default function DashboardPage() {
   if (!profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 max-w-md mx-auto text-center px-6">
-        <div className="w-14 h-14 rounded-full bg-rose-950/50 border border-rose-900 flex items-center justify-center text-rose-400">
+        <div className="w-14 h-14 rounded-full bg-zinc-950 border border-red-900/60 flex items-center justify-center text-red-400">
           <AlertTriangle className="w-6 h-6" />
         </div>
-        <h2 className="text-lg font-bold text-white">Could not load your profile</h2>
-        <p className="text-sm text-slate-400">
+        <h2 className="text-base font-bold text-white">Could not load your profile</h2>
+        <p className="text-xs text-zinc-400">
           {syncError || 'Database connection failed. Replace <db_password> in .env.local with your real MongoDB Atlas password, then restart the server.'}
         </p>
         <button
           onClick={() => window.location.reload()}
-          className="px-5 py-2.5 rounded-xl glowing-button text-white text-sm font-bold animate-pulse"
+          className="px-5 py-2.5 rounded-lg glowing-button text-white text-xs font-bold"
         >
           Retry
         </button>
@@ -331,34 +331,34 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-8">
       {/* Dashboard Welcome Header */}
-      <div className="glass-panel p-6 sm:p-8 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden">
+      <div className="bg-zinc-950 border border-zinc-900 p-6 sm:p-8 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-6 shadow-md relative overflow-hidden">
         <div className="flex items-center gap-5">
           <img 
             src={profile.profileImage || '/default-avatar.png'} 
             alt={profile.fullName} 
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border border-indigo-500/20 object-cover shadow-indigo-500/10 shadow-lg"
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl border border-zinc-800 object-cover shadow-sm"
             onError={(e) => {
               (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${profile.fullName}`;
             }}
           />
-          <div className="flex flex-col">
-            <span className="text-xs font-semibold text-indigo-400 uppercase tracking-widest">Authorized Session</span>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-white flex items-center gap-2">
+          <div className="flex flex-col text-left">
+            <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Authorized Session</span>
+            <h2 className="text-xl sm:text-2xl font-extrabold text-white flex items-center gap-2 mt-0.5">
               {getGreeting(profile.fullName)}
             </h2>
-            <span className="text-sm text-slate-400 mt-0.5">Ready for your next secure meeting?</span>
-            <span className="text-xs text-slate-500 mt-1">Username: <span className="text-cyan-400 font-semibold">@{profile.username}</span></span>
+            <span className="text-xs text-zinc-400 mt-1">Ready for your next secure meeting?</span>
+            <span className="text-[10px] text-zinc-500 mt-1.5 uppercase font-bold tracking-wider">Username: <span className="text-cyan-400">@{profile.username}</span></span>
           </div>
         </div>
 
         <div className="flex gap-4">
           <button 
             onClick={fetchMeetings} 
-            className="px-5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 font-medium text-sm hover:bg-slate-850 hover:text-white transition-all flex items-center gap-2 cursor-pointer"
+            className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold text-xs hover:bg-zinc-850 hover:text-white transition-all flex items-center gap-2 cursor-pointer"
             title="Reload meeting lists and sync status"
             aria-label="Refresh meeting sessions list"
           >
-            <RefreshCw className="w-4 h-4 text-indigo-400" />
+            <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
             <span>Sync Status</span>
           </button>
         </div>
@@ -367,49 +367,49 @@ export default function DashboardPage() {
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Meetings */}
-        <div className="glass-panel p-5 rounded-2xl flex items-center justify-between shadow-md border border-slate-900/50 hover:border-slate-800/80 transition-colors">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Total Meetings</span>
+        <div className="bg-zinc-950 border border-zinc-900 p-5 rounded-xl flex items-center justify-between shadow-sm hover:border-zinc-800 transition-colors">
+          <div className="flex flex-col gap-1 text-left">
+            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">Total Meetings</span>
             <span className="text-xl sm:text-2xl font-extrabold text-white">{totalMeetings}</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-950/60 border border-indigo-900/40 flex items-center justify-center text-indigo-400 shadow-md">
-            <Calendar className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-850 flex items-center justify-center text-indigo-400">
+            <Calendar className="w-4.5 h-4.5" />
           </div>
         </div>
 
         {/* Live Meetings */}
-        <div className="glass-panel p-5 rounded-2xl flex items-center justify-between shadow-md border border-slate-900/50 hover:border-slate-800/80 transition-colors">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Live Meetings</span>
+        <div className="bg-zinc-950 border border-zinc-900 p-5 rounded-xl flex items-center justify-between shadow-sm hover:border-zinc-800 transition-colors">
+          <div className="flex flex-col gap-1 text-left">
+            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">Live Meetings</span>
             <span className="text-xl sm:text-2xl font-extrabold text-white">{liveMeetings}</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-950/60 border border-emerald-900/40 flex items-center justify-center text-emerald-400 shadow-md">
-            <Video className="w-5 h-5 animate-pulse" />
+          <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-850 flex items-center justify-center text-emerald-400">
+            <Video className="w-4.5 h-4.5" />
           </div>
         </div>
 
         {/* Participants */}
-        <div className="glass-panel p-5 rounded-2xl flex items-center justify-between shadow-md border border-slate-900/50 hover:border-slate-800/80 transition-colors">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Participants</span>
+        <div className="bg-zinc-950 border border-zinc-900 p-5 rounded-xl flex items-center justify-between shadow-sm hover:border-zinc-800 transition-colors">
+          <div className="flex flex-col gap-1 text-left">
+            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">Participants</span>
             <span className="text-xl sm:text-2xl font-extrabold text-white">{totalParticipants}</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-900/40 flex items-center justify-center text-cyan-400 shadow-md">
-            <Users className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-850 flex items-center justify-center text-cyan-400">
+            <Users className="w-4.5 h-4.5" />
           </div>
         </div>
 
         {/* Secure Platform */}
-        <div className="glass-panel p-5 rounded-2xl flex items-center justify-between shadow-md border border-slate-900/50 hover:border-slate-800/80 transition-colors">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Platform Security</span>
-            <span className="text-xs sm:text-sm font-extrabold text-emerald-400 mt-1.5 flex items-center gap-1">
+        <div className="bg-zinc-950 border border-zinc-900 p-5 rounded-xl flex items-center justify-between shadow-sm hover:border-zinc-800 transition-colors">
+          <div className="flex flex-col gap-1 text-left">
+            <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest">Platform Security</span>
+            <span className="text-xs font-bold text-emerald-400 mt-1 flex items-center gap-1">
               <Shield className="w-3.5 h-3.5" />
-              <span>Linkless Active</span>
+              <span>Linkless</span>
             </span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-950/60 border border-rose-900/40 flex items-center justify-center text-rose-400 shadow-md">
-            <Shield className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-850 flex items-center justify-center text-rose-450">
+            <Shield className="w-4.5 h-4.5 text-zinc-500" />
           </div>
         </div>
       </div>
@@ -420,11 +420,11 @@ export default function DashboardPage() {
         {/* Left 2 Cols: Meetings List */}
         <div className="lg:col-span-2 flex flex-col gap-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-indigo-400" />
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <Calendar className="w-4.5 h-4.5 text-indigo-400" />
               <span>Secure Meeting Sessions</span>
             </h3>
-            <span className="text-xs text-slate-400 px-2 py-1 bg-slate-900 border border-slate-800 rounded-full font-semibold">
+            <span className="text-[10px] text-zinc-500 px-2 py-0.5 bg-zinc-950 border border-zinc-900 rounded-full font-bold uppercase tracking-wider">
               {meetings.length} Total
             </span>
           </div>
@@ -433,38 +433,37 @@ export default function DashboardPage() {
             /* Skeleton Loading Grid */
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="glass-panel p-6 rounded-2xl flex flex-col justify-between gap-6 animate-pulse">
+                <div key={i} className="bg-zinc-950 border border-zinc-900 p-6 rounded-xl flex flex-col justify-between gap-6 animate-pulse">
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="h-5 w-20 bg-slate-850 rounded-full border border-slate-800" />
-                      <div className="h-3 w-16 bg-slate-850 rounded" />
+                      <div className="h-5 w-20 bg-zinc-900 rounded-full border border-zinc-850" />
+                      <div className="h-3 w-16 bg-zinc-900 rounded" />
                     </div>
-                    <div className="h-6 w-3/4 bg-slate-800 rounded mt-1" />
-                    <div className="flex flex-col gap-2 pt-2 border-t border-slate-900/60 mt-1">
-                      <div className="h-3 w-1/2 bg-slate-850 rounded" />
-                      <div className="h-3 w-1/3 bg-slate-850 rounded" />
+                    <div className="h-6 w-3/4 bg-zinc-900 rounded mt-1" />
+                    <div className="flex flex-col gap-2 pt-2 border-t border-zinc-900/60 mt-1">
+                      <div className="h-3 w-1/2 bg-zinc-900 rounded" />
+                      <div className="h-3 w-1/3 bg-zinc-900 rounded" />
                     </div>
                   </div>
-                  <div className="h-9 w-full bg-slate-850 border border-slate-800 rounded-xl" />
+                  <div className="h-9 w-full bg-zinc-900 border border-zinc-850 rounded-lg" />
                 </div>
               ))}
             </div>
           ) : meetings.length === 0 ? (
-            /* Polished Empty State Card */
-            <div className="glass-panel rounded-3xl p-12 text-center flex flex-col items-center justify-center gap-5 border border-dashed border-slate-800/80 shadow-md">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-950/40 border border-indigo-900/40 flex items-center justify-center text-indigo-400 shadow-lg">
-                <Inbox className="w-8 h-8" />
+            /* Polished Empty State Card (Linear style) */
+            <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-12 text-center flex flex-col items-center justify-center gap-5 shadow-sm">
+              <div className="w-12 h-12 rounded-lg bg-zinc-900 border border-zinc-850 flex items-center justify-center text-zinc-500">
+                <Inbox className="w-5 h-5" />
               </div>
-              <div className="flex flex-col gap-2">
-                <h4 className="text-xl font-bold text-white">Create Your First Meeting</h4>
-                <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-                  NeuraMeet meetings are fully protected and linkless. Invite colleagues securely by their unique usernames using the scheduler form on the right.
+              <div className="flex flex-col gap-1">
+                <h4 className="text-base font-bold text-white">Create your first meeting</h4>
+                <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                  NeuraMeet meetings are fully protected and linkless. Invite colleagues securely by their unique usernames.
                 </p>
               </div>
               <button
                 onClick={() => titleInputRef.current?.focus()}
-                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/35 transition-all cursor-pointer animate-pulse"
-                style={{ animationDuration: '3s' }}
+                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow transition-all cursor-pointer"
               >
                 Schedule Meeting Now
               </button>
@@ -476,16 +475,16 @@ export default function DashboardPage() {
                 return (
                   <div 
                     key={meeting.id} 
-                    className="glass-panel p-6 rounded-2xl glass-card-hover flex flex-col justify-between gap-6 hover:border-indigo-500/35 transition-all duration-300 shadow-md group"
+                    className="bg-zinc-950 border border-zinc-900 p-6 rounded-xl hover:border-zinc-800 hover:-translate-y-0.5 transition-all duration-200 shadow-sm flex flex-col justify-between gap-6 group text-left"
                   >
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center justify-between gap-3">
-                        <span className={`text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
+                        <span className={`text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-md border flex items-center gap-1.5 ${
                           meeting.status === 'active' 
-                            ? 'bg-emerald-950/80 border-emerald-800 text-emerald-400' 
+                            ? 'bg-emerald-950 border-emerald-900 text-emerald-400' 
                             : meeting.status === 'ended'
-                            ? 'bg-slate-900/60 border-slate-800 text-slate-400'
-                            : 'bg-indigo-950/80 border-indigo-800 text-indigo-400'
+                            ? 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                            : 'bg-indigo-950 border-indigo-900 text-indigo-400'
                         }`}>
                           {meeting.status === 'active' ? (
                             <>
@@ -494,54 +493,51 @@ export default function DashboardPage() {
                             </>
                           ) : meeting.status === 'ended' ? (
                             <>
-                              <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
                               <span>Ended</span>
                             </>
                           ) : (
                             <>
-                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" style={{ animationDuration: '3s' }} />
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                               <span>Scheduled</span>
                             </>
                           )}
                         </span>
-                        <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-650" />
+                        <span className="text-[10px] text-zinc-500 font-mono flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-zinc-600" />
                           <span>{getRelativeTime(meeting.createdAt)}</span>
                         </span>
                       </div>
                       
-                      <div className="flex flex-col gap-1.5 mt-1">
-                        <h4 className="text-lg font-extrabold text-slate-100 group-hover:text-indigo-300 transition-colors line-clamp-1">{meeting.title}</h4>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <h4 className="text-base font-extrabold text-white group-hover:text-indigo-400 transition-colors line-clamp-1">{meeting.title}</h4>
                         
-                        {/* Copyable Meeting ID layout */}
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Meeting ID</span>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs font-mono font-bold text-cyan-400 bg-slate-950/60 border border-slate-900/50 px-2 py-0.5 rounded">{meeting.id}</span>
-                            <button
-                              onClick={() => handleCopyId(meeting.id)}
-                              className="p-1 rounded bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-850 active:scale-95 transition-all cursor-pointer flex items-center justify-center min-w-[24px]"
-                              aria-label={`Copy meeting ID ${meeting.id}`}
-                              title="Copy Meeting ID"
-                            >
-                              {copiedId === meeting.id ? (
-                                <span className="text-[8px] font-bold text-emerald-400 px-0.5">Copied!</span>
-                              ) : (
-                                <Copy className="w-3 h-3" />
-                              )}
-                            </button>
-                          </div>
+                        {/* Copyable Meeting ID */}
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] font-mono text-zinc-400 bg-[#09090B] border border-zinc-900 px-2 py-0.5 rounded">{meeting.id}</span>
+                          <button
+                            onClick={() => handleCopyId(meeting.id)}
+                            className="p-1 rounded bg-[#09090B] border border-zinc-850 text-zinc-500 hover:text-zinc-350 hover:border-zinc-800 transition-all cursor-pointer flex items-center justify-center min-w-[20px] h-[20px]"
+                            aria-label={`Copy meeting ID ${meeting.id}`}
+                            title="Copy Meeting ID"
+                          >
+                            {copiedId === meeting.id ? (
+                              <span className="text-[8px] font-bold text-emerald-400 px-0.5">Copied!</span>
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-2 pt-2.5 text-xs text-slate-400 border-t border-slate-900/60 mt-1">
+                      <div className="flex flex-col gap-2 pt-2.5 text-xs text-zinc-400 border-t border-zinc-900/60 mt-1">
                         <span className="flex items-center gap-2">
-                          <User className="w-3.5 h-3.5 text-indigo-400/85" />
-                          <span>Host: <strong className="text-slate-200 font-semibold">@{meeting.host}</strong> {isHost && <span className="text-[9px] text-indigo-300 px-1.5 py-0.25 bg-indigo-950 border border-indigo-900/40 rounded ml-1">You</span>}</span>
+                          <User className="w-3.5 h-3.5 text-indigo-400/80" />
+                          <span>Host: <strong className="text-zinc-200 font-semibold">@{meeting.host}</strong> {isHost && <span className="text-[9px] text-indigo-400 font-bold bg-indigo-950 border border-indigo-900/40 px-1 py-0.25 rounded ml-1">You</span>}</span>
                         </span>
                         <span className="flex items-center gap-2">
-                          <Users className="w-3.5 h-3.5 text-cyan-400/85" />
-                          <span>Invitees: <strong className="text-slate-200 font-semibold">{meeting.invitees.length} User(s)</strong></span>
+                          <Users className="w-3.5 h-3.5 text-cyan-400/80" />
+                          <span>Invitees: <strong className="text-zinc-200 font-semibold">{meeting.invitees.length} User(s)</strong></span>
                         </span>
                       </div>
                     </div>
@@ -550,14 +546,14 @@ export default function DashboardPage() {
                       {meeting.status !== 'ended' ? (
                         <Link 
                           href={`/meetings/${meeting.id}`}
-                          className="w-full text-center py-2.5 rounded-xl glowing-button text-white text-xs font-bold shadow-lg"
+                          className="w-full text-center py-2 rounded-lg glowing-button text-white text-xs font-bold shadow"
                         >
                           Join Call
                         </Link>
                       ) : (
                         <button 
                           disabled 
-                          className="w-full text-center py-2.5 rounded-xl bg-slate-900 border border-slate-850 text-slate-500 text-xs font-bold cursor-not-allowed"
+                          className="w-full text-center py-2 rounded-lg bg-zinc-900 border border-zinc-850 text-zinc-500 text-xs font-bold cursor-not-allowed"
                         >
                           Meeting Closed
                         </button>
@@ -572,35 +568,35 @@ export default function DashboardPage() {
 
         {/* Right 1 Col: Schedule Meeting Form */}
         <div className="flex flex-col gap-6">
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <Shield className="w-5 h-5 text-indigo-400" />
+          <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <Shield className="w-4.5 h-4.5 text-indigo-400" />
             <span>Create Linkless Meeting</span>
           </h3>
 
-          <div className="glass-panel p-6 rounded-2xl flex flex-col gap-5 border border-indigo-500/10 shadow-lg shadow-indigo-500/2">
+          <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-xl flex flex-col gap-5 shadow-sm text-left">
             <form onSubmit={handleCreateMeeting} className="flex flex-col gap-4">
               {/* Title Input */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Meeting Title</label>
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Meeting Title</label>
                 <input 
                   ref={titleInputRef}
                   type="text" 
                   value={meetingTitle}
                   onChange={(e) => setMeetingTitle(e.target.value)}
                   placeholder="e.g. Weekly Design Critique" 
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-850 text-sm text-slate-200 focus:outline-none focus:border-indigo-500/60 transition-colors"
+                  className="w-full px-3 py-2 bg-[#09090B] border border-zinc-800 text-xs rounded-lg text-zinc-150 focus:outline-none focus:border-indigo-500/80 transition-colors placeholder:text-zinc-650"
                 />
               </div>
 
               {/* Invitees List Badges */}
               {inviteesList.length > 0 && (
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Invited Participants</label>
-                  <div className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-slate-950/60 border border-slate-850">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Invited Participants</label>
+                  <div className="flex flex-wrap gap-1.5 p-3 rounded-lg bg-[#09090B] border border-zinc-900">
                     {inviteesList.map((user) => (
                       <span 
                         key={user} 
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-950 border border-indigo-800/60 text-xs text-indigo-300 font-semibold"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-950/40 border border-indigo-900/30 text-[10px] text-indigo-300 font-semibold"
                       >
                         @{user}
                         <button 
@@ -609,7 +605,7 @@ export default function DashboardPage() {
                           className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-indigo-900 hover:text-white transition-colors cursor-pointer text-slate-400"
                           aria-label={`Remove invitee ${user}`}
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
                     ))}
@@ -618,11 +614,11 @@ export default function DashboardPage() {
               )}
 
               {/* Scheduling Error/Success messages */}
-              {schedulingError && <span className="text-xs font-semibold text-rose-400">{schedulingError}</span>}
+              {schedulingError && <span className="text-xs font-semibold text-rose-500 mt-1 flex items-center gap-1">⚠ {schedulingError}</span>}
               {schedulingSuccess && (
-                <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5 mt-1">
                   <CheckCircle className="w-4 h-4" />
-                  <span>Linkless meeting scheduled successfully.</span>
+                  <span>Meeting created successfully.</span>
                 </span>
               )}
 
@@ -630,34 +626,34 @@ export default function DashboardPage() {
               <button 
                 type="submit" 
                 disabled={creatingMeeting}
-                className="w-full py-3 rounded-xl glowing-button text-white font-bold text-sm shadow-md cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 rounded-lg glowing-button text-white font-bold text-xs shadow cursor-pointer disabled:opacity-50"
               >
                 {creatingMeeting ? 'Creating meeting...' : 'Create Secure Meeting'}
               </button>
             </form>
 
-            <div className="w-full h-px bg-slate-900 my-1" />
+            <div className="w-full h-px bg-zinc-900 my-1" />
 
             {/* Invite Username Search input */}
             <form onSubmit={handleAddInvitee} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Invite by Username</label>
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Invite by Username</label>
                 <div className="flex gap-2">
                   <input 
                     type="text" 
                     value={inviteeInput}
                     onChange={(e) => setInviteeInput(e.target.value)}
                     placeholder="e.g. lucky_dev" 
-                    className="flex-grow px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-850 text-sm text-slate-200 focus:outline-none focus:border-indigo-500/60 transition-colors"
+                    className="flex-grow px-3 py-2 bg-[#09090B] border border-zinc-800 text-xs rounded-lg text-zinc-150 focus:outline-none focus:border-indigo-500/80 transition-colors placeholder:text-zinc-650"
                   />
                   <button 
                     type="submit" 
-                    className="px-4 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 font-semibold text-xs hover:bg-slate-850 hover:text-white transition-all cursor-pointer"
+                    className="px-3 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 font-semibold text-xs hover:bg-zinc-850 hover:text-white transition-all cursor-pointer"
                   >
                     Add
                   </button>
                 </div>
-                {inviteeError && <span className="text-xs font-semibold text-rose-400 mt-1">{inviteeError}</span>}
+                {inviteeError && <span className="text-xs font-semibold text-rose-500 mt-1 flex items-center gap-1">⚠ {inviteeError}</span>}
               </div>
             </form>
           </div>
@@ -667,34 +663,34 @@ export default function DashboardPage() {
 
       {/* Floating WebRTC Live Invitation Alert Card */}
       {activeInvite && (
-        <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm glass-panel p-5 rounded-2xl border-l-4 border-l-indigo-500 shadow-2xl shadow-indigo-500/10 flex flex-col gap-3 animate-slide-in">
+        <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm bg-zinc-950 border border-zinc-900 p-5 rounded-xl shadow-2xl flex flex-col gap-3 animate-slide-in text-left">
           <div className="flex justify-between items-start gap-2">
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-400">Incoming Call Invitation</span>
-              <h4 className="text-base font-extrabold text-white mt-1 line-clamp-1">{activeInvite.title}</h4>
+              <span className="text-[9px] uppercase font-bold tracking-widest text-indigo-400">Incoming Call Invitation</span>
+              <h4 className="text-sm font-extrabold text-white mt-1 line-clamp-1">{activeInvite.title}</h4>
             </div>
             <button 
               onClick={() => setActiveInvite(null)}
-              className="text-slate-500 hover:text-slate-350 transition-colors p-1 cursor-pointer"
+              className="text-zinc-500 hover:text-zinc-300 transition-colors p-1 cursor-pointer"
               aria-label="Close incoming call invitation"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
-          <p className="text-xs text-slate-400">
-            Host <strong className="text-slate-200">@{activeInvite.hostUsername}</strong> ({activeInvite.host}) is inviting you to join this meeting room live.
+          <p className="text-xs text-zinc-400">
+            Host <strong className="text-zinc-200">@{activeInvite.hostUsername}</strong> ({activeInvite.host}) is inviting you to join this meeting room live.
           </p>
           <div className="flex gap-3 mt-1">
             <Link 
               href={`/meetings/${activeInvite.meetingId}`}
               onClick={() => setActiveInvite(null)}
-              className="flex-grow text-center py-2 rounded-xl glowing-button text-white text-xs font-bold shadow-lg"
+              className="flex-grow text-center py-2 rounded-lg glowing-button text-white text-xs font-bold shadow"
             >
               Join Instant
             </Link>
             <button 
               onClick={() => setActiveInvite(null)}
-              className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 text-xs font-bold hover:bg-slate-850 hover:text-white transition-all"
+              className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 text-xs font-bold hover:bg-zinc-850 hover:text-white transition-all"
             >
               Decline
             </button>
@@ -704,9 +700,9 @@ export default function DashboardPage() {
 
       {/* Floating Copy Confirmation Toast */}
       {copyToast && (
-        <div className="fixed bottom-6 left-6 z-50 glass-panel bg-slate-950/90 border border-slate-800 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 animate-slide-in">
-          <CheckCircle className="w-4 h-4 text-emerald-400 animate-bounce" />
-          <span className="text-xs font-semibold text-slate-200">Meeting ID copied to clipboard</span>
+        <div className="fixed bottom-6 left-6 z-50 bg-zinc-950 border border-zinc-900 px-4 py-2.5 rounded-lg shadow-2xl flex items-center gap-2 animate-slide-in">
+          <CheckCircle className="w-4 h-4 text-emerald-400" />
+          <span className="text-xs font-semibold text-zinc-200">Meeting ID copied to clipboard</span>
         </div>
       )}
     </div>
