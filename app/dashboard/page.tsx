@@ -306,7 +306,7 @@ export default function DashboardPage() {
   if (!profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 max-w-md mx-auto text-center px-6">
-        <div className="w-14 h-14 rounded-full bg-zinc-950 border border-red-900/60 flex items-center justify-center text-red-400">
+        <div className="w-14 h-14 rounded-full bg-zinc-950 border border-red-900/60 flex items-center justify-center text-red-450">
           <AlertTriangle className="w-6 h-6" />
         </div>
         <h2 className="text-base font-bold text-white">Could not load your profile</h2>

@@ -1,4 +1,4 @@
-import { getMeetingAction } from '@/components/dashboard/actions';
+import { getMeetingAction } from '@/app/dashboard/actions';
 import MeetingRoomClient from './MeetingRoomClient';
 import { ShieldAlert } from 'lucide-react';
 
