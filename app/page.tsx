@@ -3,7 +3,7 @@ import { Show } from '@clerk/nextjs';
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import { Eye, ShieldCheck, MessageSquareWarning, BrainCircuit, Check, Sparkles, Heart, ChevronDown, ArrowRight } from 'lucide-react';
-//import { FadeUp, StaggerContainer, ScaleHoverCard, BackgroundGlows } from '@/components/LandingMotion';
+import { FadeUp, StaggerContainer, ScaleHoverCard } from '@/components/LandingMotion';
 
 export default async function Home() {
   const { userId } = await auth();
