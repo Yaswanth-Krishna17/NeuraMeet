@@ -7,7 +7,9 @@ import {
   getUserByUsername, 
   createMeeting as createMeetingDb, 
   getMeeting as getMeetingDb, 
-  getUserMeetings as getUserMeetingsDb 
+  getUserMeetings as getUserMeetingsDb,
+  deleteMeeting,
+  updateMeetingInvitees
 } from '@/lib/db.js';
 
 /**
@@ -57,7 +59,7 @@ export async function checkUsernameExistsAction(username: string) {
 /**
  * Schedules a new Linkless Meeting in MongoDB
  */
-export async function createMeetingAction(title: string, invitees: string[]) {
+export async function createMeetingAction(title: string, invitees: string[], scheduledAt?: string) {
   const clerkUser = await currentUser();
   if (!clerkUser) {
     return { success: false, error: 'Not authenticated' };
@@ -94,7 +96,7 @@ export async function createMeetingAction(title: string, invitees: string[]) {
       .toString()
       .replace(/(\d{3})(\d{3})(\d{3})/, '$1-$2-$3');
 
-    const newMeeting = await createMeetingDb(meetingId, title, host, cleanInvitees) as any;
+    const newMeeting = await createMeetingDb(meetingId, title, host, cleanInvitees, scheduledAt) as any;
     return { success: true, meeting: JSON.parse(JSON.stringify(newMeeting)) };
   } catch (err: any) {
     console.error('Create meeting error:', err);
@@ -158,5 +160,95 @@ export async function getMeetingAction(meetingId: string) {
   } catch (err: any) {
     console.error('Get meeting details error:', err);
     return { success: false, error: err?.message || 'Database error', authorized: false };
+  }
+}
+
+/**
+ * Deletes a meeting (completely if Host, removes invitee from array if guest)
+ */
+export async function deleteMeetingAction(meetingId: string) {
+  const clerkUser = await currentUser();
+  if (!clerkUser) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  const email = clerkUser.emailAddresses[0]?.emailAddress || '';
+  const username = (clerkUser.username || email.split('@')[0] || '').toLowerCase().trim();
+
+  try {
+    const meeting = await getMeetingDb(meetingId) as any;
+    if (!meeting) {
+      return { success: false, error: 'Meeting not found' };
+    }
+
+    if (meeting.host !== username) {
+      // If invitee, remove them from invitees array
+      const nextInvitees = meeting.invitees.filter((i: string) => i !== username);
+      await updateMeetingInvitees(meetingId, nextInvitees);
+      return { success: true, removedSelf: true };
+    }
+
+    // If host, delete completely
+    await deleteMeeting(meetingId);
+    return { success: true, deleted: true };
+  } catch (err: any) {
+    console.error('Delete meeting action error:', err);
+    return { success: false, error: err?.message || 'Failed to delete meeting' };
+  }
+}
+
+/**
+ * Adds a new invitee to an existing meeting
+ */
+export async function addMeetingInviteeAction(meetingId: string, inviteeUsername: string) {
+  const clerkUser = await currentUser();
+  if (!clerkUser) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  const email = clerkUser.emailAddresses[0]?.emailAddress || '';
+  const username = (clerkUser.username || email.split('@')[0] || '').toLowerCase().trim();
+  const cleanInvitee = inviteeUsername.trim().toLowerCase();
+
+  if (!cleanInvitee) {
+    return { success: false, error: 'Invitee username is required.' };
+  }
+
+  try {
+    const meeting = await getMeetingDb(meetingId) as any;
+    if (!meeting) {
+      return { success: false, error: 'Meeting not found' };
+    }
+
+    if (meeting.host !== username) {
+      return { success: false, error: 'Only the host can add members to this meeting.' };
+    }
+
+    if (cleanInvitee === username) {
+      return { success: false, error: 'You cannot invite yourself.' };
+    }
+
+    if (meeting.invitees.includes(cleanInvitee)) {
+      return { success: false, error: 'User is already invited.' };
+    }
+
+    // Validate invitee exists
+    const userExists = await getUserByUsername(cleanInvitee);
+    if (!userExists) {
+      return { success: false, error: `Username @${cleanInvitee} does not exist on this platform.` };
+    }
+
+    const nextInvitees = [...meeting.invitees, cleanInvitee];
+    const updated = await updateMeetingInvitees(meetingId, nextInvitees);
+
+    return { 
+      success: true, 
+      meeting: JSON.parse(JSON.stringify(updated)),
+      addedUsername: cleanInvitee,
+      hostFullName: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || username
+    };
+  } catch (err: any) {
+    console.error('Add invitee action error:', err);
+    return { success: false, error: err?.message || 'Failed to add member' };
   }
 }

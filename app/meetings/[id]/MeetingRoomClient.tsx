@@ -2,9 +2,18 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Eye, Shield, CheckCircle, AlertTriangle, MessageSquare, Mic, MicOff, Video, VideoOff, BarChart2, Users, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ShieldAlert, AlertTriangle, X, Check, Mic, Users, Clock, Settings } from 'lucide-react';
+
+// Import newly created custom components
+import MeetingHeader from '@/components/meeting/MeetingHeader';
+import VideoGrid from '@/components/meeting/VideoGrid';
+import ChatPanel from '@/components/meeting/ChatPanel';
+import ParticipantSidebar from '@/components/meeting/ParticipantSidebar';
+import BottomControls from '@/components/meeting/BottomControls';
+import VideoCard, { useAudioActivity } from '@/components/meeting/VideoCard';
+import { addMeetingInviteeAction } from '@/app/dashboard/actions';
 
 interface MeetingDetails {
   id: string;
@@ -46,155 +55,90 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
   const router = useRouter();
   const isHost = meeting.host.toLowerCase() === username.toLowerCase();
 
-  // Socket & Streams State
+  // Socket & local stream states
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [socketConnected, setSocketConnected] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [micEnabled, setMicEnabled] = useState(true);
   const [camEnabled, setCamEnabled] = useState(true);
-  const [sidebarTab, setSidebarTab] = useState<'chat' | 'participants'>('chat');
+  const [screenShareEnabled, setScreenShareEnabled] = useState(false);
 
-  // WebRTC Senders to dynamically add/remove tracks
+  // Side panels state (Chat / Participants)
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarTab, setSidebarTab] = useState<'chat' | 'participants'>('chat');
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  // Modals state
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Typing & Peer states synchronized via WebRTC Data Channels
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [peerMediaStatuses, setPeerMediaStatuses] = useState<
+    Record<string, { micEnabled: boolean; camEnabled: boolean; isSpeaking: boolean }>
+  >({});
+
+  // WebRTC Peer connections
   const videoSendersRef = useRef<Map<string, RTCRtpSender>>(new Map()); // targetSocketId -> RTCRtpSender
   const peerConnectionsRef = useRef<Map<string, PeerConnectionWrapper>>(new Map()); // socketId -> Peer
-  const [activePeers, setActivePeers] = useState<{ socketId: string; username: string; stream: MediaStream | null }[]>([]);
+  const dataChannelsRef = useRef<Map<string, RTCDataChannel>>(new Map()); // socketId -> RTCDataChannel
+  const [activePeers, setActivePeers] = useState<
+    { socketId: string; username: string; stream: MediaStream | null }[]
+  >([]);
 
-  // Speech Recognition continuous transcript State
+  // Speech Recognition continuous transcript (STT Swearing moderation)
   const [sttActive, setSttActive] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // Chat Panel State
+  // Chat message logs
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState('');
-  const [chatCollapsed, setChatCollapsed] = useState(false);
 
-  // Moderation warning toast
-  const [warningToast, setWarningToast] = useState<{ visible: boolean; message: string }>({ visible: false, message: '' });
+  // Security warning alerts from moderation backend
+  const [warningToast, setWarningToast] = useState<{ visible: boolean; message: string }>({
+    visible: false,
+    message: '',
+  });
 
-  // Focus Analytics State
-  const [focusScore, setFocusScore] = useState(100);
-  const [focusDetails, setFocusDetails] = useState({ distracted: false, drowsy: false });
-  const [hostAvgFocus, setHostAvgFocus] = useState(100);
-  const [hostParticipantCount, setHostParticipantCount] = useState(0);
+  // Server moderation strike tracker (updated via focus-analytics-update event)
   const [peerScores, setPeerScores] = useState<PeerScore[]>([]);
 
-  // DOM Refs
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const hiddenVideoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const chatBottomRef = useRef<HTMLDivElement | null>(null);
+  // Local user speaking activity
+  const localIsSpeaking = useAudioActivity(localStream, micEnabled);
 
-  // Dynamic MediaPipe Scripts Loading State
-  const [mediaPipeLoaded, setMediaPipeLoaded] = useState(false);
+  // Setup WebRTC configurations
+  const peerConfiguration = {
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+  };
 
-  // Non-Camera Telemetry tracking variables
-  const lastActivityTimeRef = useRef<number>(Date.now());
-  const windowFocusedRef = useRef<boolean>(true);
-  const tabVisibleRef = useRef<boolean>(true);
-
-  // 1. Load Google MediaPipe CDN Scripts dynamically
-  useEffect(() => {
-    let cameraScript: HTMLScriptElement;
-    let faceMeshScript: HTMLScriptElement;
-
-    const loadCamera = () => {
-      cameraScript = document.createElement('script');
-      cameraScript.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js';
-      cameraScript.async = true;
-      document.body.appendChild(cameraScript);
-
-      cameraScript.onload = () => {
-        faceMeshScript = document.createElement('script');
-        faceMeshScript.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js';
-        faceMeshScript.async = true;
-        document.body.appendChild(faceMeshScript);
-
-        faceMeshScript.onload = () => {
-          setMediaPipeLoaded(true);
-          console.log('🚀 MediaPipe Face Mesh & Camera loaded successfully.');
-        };
-      };
-    };
-
-    loadCamera();
-
-    return () => {
-      if (cameraScript) document.body.removeChild(cameraScript);
-      if (faceMeshScript) document.body.removeChild(faceMeshScript);
-    };
-  }, []);
-
-  // 2. Setup non-camera telemetry hooks
-  useEffect(() => {
-    const handleFocus = () => {
-      windowFocusedRef.current = true;
-      lastActivityTimeRef.current = Date.now();
-    };
-    const handleBlur = () => {
-      windowFocusedRef.current = false;
-      setFocusDetails((prev) => ({ ...prev, distracted: true }));
-    };
-    const handleVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        tabVisibleRef.current = false;
-        setFocusDetails((prev) => ({ ...prev, distracted: true }));
-      } else {
-        tabVisibleRef.current = true;
-        lastActivityTimeRef.current = Date.now();
-      }
-    };
-    const handleActivity = () => {
-      lastActivityTimeRef.current = Date.now();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    const activityEvents = ['mousemove', 'keypress', 'scroll', 'click'];
-    activityEvents.forEach((evt) => {
-      window.addEventListener(evt, handleActivity, { passive: true });
-    });
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      activityEvents.forEach((evt) => {
-        window.removeEventListener(evt, handleActivity);
-      });
-    };
-  }, []);
-
-  // 3. Audio/Video Local Stream Capture
+  // 1. Initial capture of Audio/Video stream
   useEffect(() => {
     let activeStream: MediaStream | null = null;
 
     const setupMedia = async () => {
       try {
-        // Try getting video & audio
         activeStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 360, frameRate: { ideal: 24 } },
+          video: { width: 1280, height: 720, frameRate: { ideal: 24 } },
           audio: true,
         });
       } catch (err) {
-        console.warn('Full media capture failed. Attempting audio only...', err);
+        console.warn('Full HD capture failed. Attempting standard visual...', err);
         try {
-          activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        } catch (audioErr) {
-          console.error('All media hardware blocked.', audioErr);
+          activeStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true,
+          });
+        } catch (videoErr) {
+          console.warn('Video hardware blocked. Attempting audio only...', videoErr);
+          try {
+            activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          } catch (audioErr) {
+            console.error('All media hardware blocked.', audioErr);
+            appendSystemMessage('⚠️ Hardware error: No microphone or camera could be accessed.');
+          }
         }
       }
 
       if (activeStream) {
         setLocalStream(activeStream);
-        if (localVideoRef.current && activeStream.getVideoTracks().length > 0) {
-          localVideoRef.current.srcObject = activeStream;
-          localVideoRef.current.play().catch(e => console.warn('Autoplay blocked:', e));
-        }
-        if (hiddenVideoRef.current && activeStream.getVideoTracks().length > 0) {
-          hiddenVideoRef.current.srcObject = activeStream;
-          hiddenVideoRef.current.play().catch(e => console.warn('Hidden stream autoplay blocked:', e));
-        }
       }
     };
 
@@ -207,225 +151,104 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
     };
   }, []);
 
-  // 4. Focus Telemetry Heartbeat Score Calculator (every 10s)
-  useEffect(() => {
-    const dispatchHeartbeat = () => {
-      setFocusScore((prevScore) => {
-        let newScore = prevScore;
-        const inactiveDuration = Date.now() - lastActivityTimeRef.current;
-
-        if (!windowFocusedRef.current || !tabVisibleRef.current) {
-          newScore = 0;
-          setFocusDetails((prev) => ({ ...prev, distracted: true }));
-        } else if (focusDetails.drowsy) {
-          newScore = Math.max(0, newScore - 30);
-        } else if (focusDetails.distracted) {
-          newScore = Math.max(0, newScore - 20);
-        } else if (inactiveDuration > 180000) {
-          // Inactive mouse/keyboard for >3 minutes
-          newScore = Math.max(10, newScore - 15);
-        } else {
-          newScore = Math.min(100, newScore + 15);
-        }
-
-        // Emit local focus updates to WebSockets
-        if (socket && socket.connected) {
-          socket.emit('focus-score', { score: newScore });
-        }
-
-        return newScore;
-      });
+  // 2. Setup WebRTC Data Channels and state updates
+  const setupDataChannel = (dc: RTCDataChannel, targetSocketId: string) => {
+    dc.onopen = () => {
+      dataChannelsRef.current.set(targetSocketId, dc);
+      // Sync starting states immediately
+      dc.send(
+        JSON.stringify({
+          type: 'media-status',
+          micEnabled,
+          camEnabled,
+        })
+      );
     };
 
-    const interval = setInterval(dispatchHeartbeat, 10000);
-    return () => clearInterval(interval);
-  }, [focusDetails, socket]);
+    dc.onclose = () => {
+      dataChannelsRef.current.delete(targetSocketId);
+    };
 
-  // 5. Google MediaPipe Face Mesh Initialization
-  useEffect(() => {
-    if (!mediaPipeLoaded || !localStream || localStream.getVideoTracks().length === 0 || !hiddenVideoRef.current) return;
-
-    let faceMesh: any;
-    let camera: any;
-
-    try {
-      const FaceMeshClass = (window as any).FaceMesh;
-      const CameraClass = (window as any).Camera;
-
-      if (!FaceMeshClass || !CameraClass) return;
-
-      faceMesh = new FaceMeshClass({
-        locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
-      });
-
-      faceMesh.setOptions({
-        maxNumFaces: 1,
-        refineLandmarks: true,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-      });
-
-      let eyesClosedStartTime: number | null = null;
-
-      faceMesh.onResults((results: any) => {
-        const landmarks = results.multiFaceLandmarks ? results.multiFaceLandmarks[0] : null;
-        const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-
-        if (!canvas || !ctx) return;
-
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        if (!landmarks) {
-          // Face missing
-          setFocusDetails({ distracted: true, drowsy: false });
-          return;
-        }
-
-        // --- Render glow mesh layers (Cyber visual wow factor) ---
-        ctx.strokeStyle = 'rgba(6, 182, 212, 0.45)'; // Cyan mesh lines
-        ctx.lineWidth = 1;
-
-        const drawPolyline = (points: number[]) => {
-          ctx.beginPath();
-          points.forEach((idx, i) => {
-            const pt = landmarks[idx];
-            if (!pt) return;
-            const x = pt.x * canvas.width;
-            const y = pt.y * canvas.height;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+    dc.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === 'media-status') {
+          setPeerMediaStatuses((prev) => ({
+            ...prev,
+            [targetSocketId]: {
+              micEnabled: payload.micEnabled,
+              camEnabled: payload.camEnabled,
+              isSpeaking: prev[targetSocketId]?.isSpeaking || false,
+            },
+          }));
+        } else if (payload.type === 'typing') {
+          setTypingUsers((prev) => {
+            if (payload.isTyping) {
+              if (prev.includes(payload.username)) return prev;
+              return [...prev, payload.username];
+            } else {
+              return prev.filter((u) => u !== payload.username);
+            }
           });
-          ctx.closePath();
-          ctx.stroke();
-        };
-
-        const drawDot = (pt: any) => {
-          if (!pt) return;
-          ctx.beginPath();
-          ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 2.5, 0, 2 * Math.PI);
-          ctx.fillStyle = '#10b981'; // emerald green dots
-          ctx.fill();
-        };
-
-        // Draw left eye boundary
-        drawPolyline([33, 160, 158, 133, 153, 144]);
-        // Draw right eye boundary
-        drawPolyline([362, 385, 387, 263, 373, 380]);
-        // Outer face boundary
-        drawPolyline([10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]);
-
-        // Draw glowing eye centers
-        drawDot(landmarks[468]);
-        drawDot(landmarks[473]);
-
-        // --- Core Algorithm Feature A: Eye Aspect Ratio (EAR) for Drowsiness ---
-        const getEyeRatio = (top: number, bottom: number, left: number, right: number) => {
-          const pTop = landmarks[top];
-          const pBottom = landmarks[bottom];
-          const pLeft = landmarks[left];
-          const pRight = landmarks[right];
-          const vert = Math.sqrt(Math.pow(pTop.x - pBottom.x, 2) + Math.pow(pTop.y - pBottom.y, 2));
-          const horiz = Math.sqrt(Math.pow(pLeft.x - pRight.x, 2) + Math.pow(pLeft.y - pRight.y, 2));
-          return vert / horiz;
-        };
-
-        const earLeft = getEyeRatio(386, 374, 362, 263);
-        const earRight = getEyeRatio(159, 145, 33, 133);
-        const avgEAR = (earLeft + earRight) / 2;
-
-        let localDrowsy = false;
-        if (avgEAR < 0.15) {
-          if (!eyesClosedStartTime) {
-            eyesClosedStartTime = Date.now();
-          } else if (Date.now() - eyesClosedStartTime > 2000) {
-            localDrowsy = true;
-          }
-        } else {
-          eyesClosedStartTime = null;
         }
-
-        // --- Feature B: Head turn Pose ---
-        const nose = landmarks[4];
-        const leftFace = landmarks[234];
-        const rightFace = landmarks[454];
-        const horizontalRatio = Math.abs(nose.x - leftFace.x) / Math.abs(nose.x - rightFace.x);
-
-        const chin = landmarks[152];
-        const noseBridge = landmarks[168];
-        const verticalRatio = Math.abs(nose.y - noseBridge.y) / Math.abs(nose.y - chin.y);
-
-        const turnedAway = horizontalRatio < 0.45 || horizontalRatio > 2.2 || verticalRatio < 0.35 || verticalRatio > 1.8;
-
-        // --- Feature C: Eye Gaze offset ---
-        const leftIris = landmarks[468];
-        const rightIris = landmarks[473];
-        const leftIrisOffset = Math.abs(leftIris.x - landmarks[362].x) / Math.abs(landmarks[263].x - landmarks[362].x);
-        const rightIrisOffset = Math.abs(rightIris.x - landmarks[33].x) / Math.abs(landmarks[133].x - landmarks[33].x);
-
-        const gazeShifted = leftIrisOffset < 0.28 || leftIrisOffset > 0.72 || rightIrisOffset < 0.28 || rightIrisOffset > 0.72;
-
-        setFocusDetails({
-          drowsy: localDrowsy,
-          distracted: turnedAway || gazeShifted,
-        });
-      });
-
-      camera = new CameraClass(hiddenVideoRef.current, {
-        onFrame: async () => {
-          // Read local camera frame even if camera is turned off locally (camera-off background processing)
-          if (localStream.getVideoTracks()[0]?.readyState === 'live') {
-            await faceMesh.send({ image: hiddenVideoRef.current });
-          }
-        },
-        width: 640,
-        height: 360,
-      });
-
-      camera.start();
-    } catch (err) {
-      console.error('FaceMesh starting failure:', err);
-    }
-
-    return () => {
-      if (camera) camera.stop();
-      if (faceMesh) faceMesh.close();
+      } catch (err) {
+        console.error('[DATA CHANNEL] Parse error:', err);
+      }
     };
-  }, [mediaPipeLoaded, localStream]);
+  };
 
-  // 6. Sockets Initialization & Signaling Mesh Router
+  const sendMediaStatusToAll = (mic: boolean, cam: boolean) => {
+    const payload = JSON.stringify({
+      type: 'media-status',
+      micEnabled: mic,
+      camEnabled: cam,
+    });
+    dataChannelsRef.current.forEach((dc) => {
+      if (dc.readyState === 'open') dc.send(payload);
+    });
+  };
+
+  const sendTypingStatusToAll = (typing: boolean) => {
+    const payload = JSON.stringify({
+      type: 'typing',
+      username,
+      isTyping: typing,
+    });
+    dataChannelsRef.current.forEach((dc) => {
+      if (dc.readyState === 'open') dc.send(payload);
+    });
+  };
+
+  // 3. Socket.IO connection & signaling mesh lifecycle
   useEffect(() => {
     if (!localStream) return;
 
     const socketConn = io();
     setSocket(socketConn);
 
-    const peerConfiguration = {
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    };
-
     socketConn.on('connect', () => {
+      setSocketConnected(true);
       socketConn.emit('register-user', { username });
       socketConn.emit('join-meeting', { meetingId: meeting.id, username });
     });
 
-    // Receive initial lobby peer list
+    socketConn.on('disconnect', () => {
+      setSocketConnected(false);
+    });
+
+    // Receive peer list
     socketConn.on('lobby-peers', (peersList: { socketId: string; username: string }[]) => {
-      console.log(`Lobby has ${peersList.length} peers. Establishing handshakes.`);
       peersList.forEach((peer) => {
         initiatePeerConnection(peer.socketId, peer.username, true);
       });
     });
 
-    // Handle new incoming peer connections
+    // Handle new peer connecting
     socketConn.on('user-connected', ({ socketId, username: peerName }) => {
-      console.log(`User connected: ${peerName} (${socketId})`);
       initiatePeerConnection(socketId, peerName, false);
     });
 
-    // WebRTC Signaling relayer
+    // WebRTC Signaling relayer channel
     socketConn.on('signal', async ({ senderSocketId, signalData }) => {
       const wrapper = peerConnectionsRef.current.get(senderSocketId);
       if (!wrapper) return;
@@ -446,58 +269,77 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
         try {
           await pc.addIceCandidate(new RTCIceCandidate(signalData));
         } catch (e) {
-          console.error('Error appending ICE candidate', e);
+          console.error('[WebRTC] ICE candidate appending failure', e);
         }
       }
     });
 
     // Handle user disconnect
     socketConn.on('user-disconnected', ({ socketId, username: peerName, kicked, reason }) => {
-      console.log(`Peer left: ${peerName}`);
       cleanupPeer(socketId);
       if (kicked) {
         appendSystemMessage(`🚨 @${peerName} was kicked from the meeting. Reason: ${reason}`);
+      } else {
+        appendSystemMessage(`👤 @${peerName} left the room.`);
       }
     });
 
-    // Handle warnings and eviction from server moderation
+    // Warnings and kicks from socket moderation
     socketConn.on('moderation-warning', ({ strikes, reason }) => {
-      showSecurityWarning(`Strike ${strikes}/3 warning: ${reason}`);
+      showSecurityWarning(`Moderation warning [Strike ${strikes}/3]: ${reason}`);
     });
 
     socketConn.on('force-kick', ({ reason }) => {
-      alert(`⚠️ SECURE BOOT NOTICE:\nYou have been kicked from the meeting room.\nReason: ${reason}`);
+      alert(`⚠️ SECURE BOOT NOTICE:\nYou have been kicked from the meeting.\nReason: ${reason}`);
       if (localStream) {
         localStream.getTracks().forEach((t) => t.stop());
       }
       router.push('/dashboard');
     });
 
-    // Chat message routing
+    // Chat routing
     socketConn.on('chat-message', (msg) => {
       appendChatMessage(msg.sender, msg.text, msg.flagged);
+      
+      // Update unread count if panel isn't open on chat tab
+      setSidebarOpen((isOpen) => {
+        if (!isOpen || sidebarTab !== 'chat') {
+          setUnreadChatCount((count) => count + 1);
+        }
+        return isOpen;
+      });
     });
 
-    // Host statistics updates & visual indicators on remote peers
-    socketConn.on('focus-analytics-update', ({ averageFocus, participantCount, peerScores: incomingScores }) => {
+    // Striking details from server
+    socketConn.on('focus-analytics-update', ({ peerScores: incomingScores }) => {
       setPeerScores(incomingScores);
-      if (isHost) {
-        setHostAvgFocus(averageFocus);
-        setHostParticipantCount(participantCount);
-      }
     });
 
     socketConn.on('join-error', (err) => {
-      alert(`Meeting Join Error: ${err}`);
+      alert(`Room entry error: ${err}`);
       router.push('/dashboard');
     });
 
-    // --- Helper WebRTC connection actions ---
-    const initiatePeerConnection = (targetSocketId: string, peerName: string, isOfferInitiator: boolean) => {
+    // Initialize RTCPeerConnection helper
+    const initiatePeerConnection = (
+      targetSocketId: string,
+      peerName: string,
+      isOfferInitiator: boolean
+    ) => {
       if (peerConnectionsRef.current.has(targetSocketId)) return;
 
       const pc = new RTCPeerConnection(peerConfiguration);
       const stream = new MediaStream();
+
+      // Create WebRTC Data Channel for chat features & statuses sync
+      if (isOfferInitiator) {
+        const dc = pc.createDataChannel('neura-meet-sync');
+        setupDataChannel(dc, targetSocketId);
+      }
+
+      pc.ondatachannel = (event) => {
+        setupDataChannel(event.channel, targetSocketId);
+      };
 
       const peerWrapper: PeerConnectionWrapper = {
         socketId: targetSocketId,
@@ -507,12 +349,12 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
         videoTrackAdded: false,
       };
 
-      // Add local audio track immediately
+      // Add local audio tracks to the peer connection
       localStream.getAudioTracks().forEach((track) => {
         pc.addTrack(track, localStream);
       });
 
-      // Camera-off Workaround: Only append local video track to RTCPeerConnection IF camera is turned ON
+      // Camera off workaround: Add video track only if camera is enabled
       if (camEnabled && localStream.getVideoTracks().length > 0) {
         const videoTrack = localStream.getVideoTracks()[0];
         const videoSender = pc.addTrack(videoTrack, localStream);
@@ -538,8 +380,6 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
           stream.getAudioTracks().forEach((t) => stream.removeTrack(t));
           stream.addTrack(track);
         }
-
-        // Trigger react state update
         syncActivePeersList();
       };
 
@@ -556,7 +396,7 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
               signalData: offer,
             });
           } catch (e) {
-            console.error('Offer generation error during negotiation:', e);
+            console.error('[WebRTC] Offer generation negotiation error:', e);
           }
         };
       }
@@ -568,12 +408,26 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
         wrapper.peerConnection.close();
         peerConnectionsRef.current.delete(socketId);
         videoSendersRef.current.delete(socketId);
+
+        const dc = dataChannelsRef.current.get(socketId);
+        if (dc) {
+          dc.close();
+          dataChannelsRef.current.delete(socketId);
+        }
+
+        // Cleanup local states for this peer
+        setPeerMediaStatuses((prev) => {
+          const next = { ...prev };
+          delete next[socketId];
+          return next;
+        });
+
         syncActivePeersList();
       }
     };
 
     const syncActivePeersList = () => {
-      const list: any[] = [];
+      const list: { socketId: string; username: string; stream: MediaStream | null }[] = [];
       peerConnectionsRef.current.forEach((val) => {
         list.push({
           socketId: val.socketId,
@@ -591,42 +445,38 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
       });
       peerConnectionsRef.current.clear();
       videoSendersRef.current.clear();
+      dataChannelsRef.current.clear();
     };
   }, [localStream, username]);
 
-  // 7. Dynamic Camera track toggler & WebRTC updates (Camera Off Workaround)
+  // 4. Dynamic camera track updates & WebRTC renegotiation
   useEffect(() => {
     if (!localStream) return;
 
-    // A. Modify local video preview track enablement
     localStream.getVideoTracks().forEach((track) => {
       track.enabled = camEnabled;
     });
 
-    // B. Handle the dynamic transmission of local video track over WebRTC peer connections
     peerConnectionsRef.current.forEach((wrapper, sid) => {
       const pc = wrapper.peerConnection;
 
       if (camEnabled && localStream.getVideoTracks().length > 0) {
         const videoTrack = localStream.getVideoTracks()[0];
-        
-        // If track is not yet added to peer connection, append it dynamically
+
         if (!wrapper.videoTrackAdded) {
           const sender = pc.addTrack(videoTrack, localStream);
           videoSendersRef.current.set(sid, sender);
           wrapper.videoTrackAdded = true;
-          
-          // Re-negotiate offer
+
           pc.createOffer().then((offer) => {
             pc.setLocalDescription(offer);
             socket?.emit('signal', {
               targetSocketId: sid,
-              signalData: offer
+              signalData: offer,
             });
           });
         }
       } else {
-        // Camera Turned Off: remove dynamic video track sender to block broadcast
         const sender = videoSendersRef.current.get(sid);
         if (sender) {
           try {
@@ -637,12 +487,11 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
           videoSendersRef.current.delete(sid);
           wrapper.videoTrackAdded = false;
 
-          // Re-negotiate offer to update video streams
           pc.createOffer().then((offer) => {
             pc.setLocalDescription(offer);
             socket?.emit('signal', {
               targetSocketId: sid,
-              signalData: offer
+              signalData: offer,
             });
           });
         }
@@ -650,11 +499,26 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
     });
   }, [camEnabled, localStream, socket]);
 
-  // 8. Continuous Speech-to-Text Setup (SpeechSwearingModerator)
+  // 5. Emit background focus score of 100 to prevent server kicks or analytics crash
   useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!socket) return;
+
+    const dispatchHeartbeat = () => {
+      if (socket.connected) {
+        socket.emit('focus-score', { score: 100 });
+      }
+    };
+
+    const interval = setInterval(dispatchHeartbeat, 10000);
+    return () => clearInterval(interval);
+  }, [socket]);
+
+  // 6. Speech-to-Text Setup (Continuous Swearing moderation)
+  useEffect(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      console.warn('Web Speech Recognition API not supported in this browser.');
+      console.warn('Speech Recognition not supported in this browser environment.');
       return;
     }
 
@@ -668,13 +532,12 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
       const transcript = event.results[lastIdx][0].transcript.trim();
 
       if (transcript && socket && socket.connected) {
-        console.log(`[STT Audio Swearing Moderation Transcript]: "${transcript}"`);
+        console.log(`[STT Moderation]: "${transcript}"`);
         socket.emit('speech-transcript', { text: transcript });
       }
     };
 
     recognition.onend = () => {
-      // Loop transcription if toggle is active
       if (sttActive) {
         recognition.start();
       }
@@ -695,16 +558,158 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
     };
   }, [sttActive, socket]);
 
-  // 9. Chat Message submit action
-  const handleSendChatMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || !socket || !socket.connected) return;
+  // 7. Global Keyboard Shortcuts handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
 
-    socket.emit('chat-message', { text: chatInput });
-    setChatInput('');
+      const key = e.key.toLowerCase();
+      if (key === 'm') {
+        e.preventDefault();
+        toggleMic();
+      } else if (key === 'v') {
+        e.preventDefault();
+        toggleCam();
+      } else if (key === 'c') {
+        e.preventDefault();
+        setSidebarOpen((prev) => {
+          if (prev && sidebarTab === 'chat') return false;
+          setSidebarTab('chat');
+          return true;
+        });
+      } else if (key === 'p') {
+        e.preventDefault();
+        setSidebarOpen((prev) => {
+          if (prev && sidebarTab === 'participants') return false;
+          setSidebarTab('participants');
+          return true;
+        });
+      } else if (key === 'l') {
+        e.preventDefault();
+        handleLeaveCall();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [micEnabled, camEnabled, sidebarTab, localStream, socket]);
+
+  // Clear unread count when chat panel is opened
+  useEffect(() => {
+    if (sidebarOpen && sidebarTab === 'chat') {
+      setUnreadChatCount(0);
+    }
+  }, [sidebarOpen, sidebarTab]);
+
+  // UI action operations
+  const toggleMic = () => {
+    if (localStream) {
+      const nextMic = !micEnabled;
+      localStream.getAudioTracks().forEach((track) => {
+        track.enabled = nextMic;
+      });
+      setMicEnabled(nextMic);
+      sendMediaStatusToAll(nextMic, camEnabled);
+    }
   };
 
-  // UI Helpers
+  const toggleCam = () => {
+    const nextCam = !camEnabled;
+    setCamEnabled(nextCam);
+    sendMediaStatusToAll(micEnabled, nextCam);
+  };
+
+  const toggleScreenShare = () => {
+    setScreenShareEnabled((prev) => {
+      const next = !prev;
+      if (next) {
+        appendSystemMessage('🖥️ You started screen sharing (visual mock).');
+      } else {
+        appendSystemMessage('🖥️ You stopped screen sharing.');
+      }
+      return next;
+    });
+  };
+
+  const toggleSidebarTab = (tab: 'chat' | 'participants') => {
+    if (sidebarOpen && sidebarTab === tab) {
+      setSidebarOpen(false);
+    } else {
+      setSidebarTab(tab);
+      setSidebarOpen(true);
+    }
+  };
+
+  const handleSendMessage = (text: string) => {
+    if (socket && socket.connected) {
+      socket.emit('chat-message', { text });
+    }
+  };
+
+  const handleTypingStart = () => {
+    sendTypingStatusToAll(true);
+  };
+
+  const handleTypingEnd = () => {
+    sendTypingStatusToAll(false);
+  };
+
+  const handleInviteUserLive = async (targetUsername: string) => {
+    const res = await addMeetingInviteeAction(meeting.id, targetUsername);
+    if (res.success && res.meeting) {
+      if (socket) {
+        socket.emit('meeting-created', {
+          meetingId: meeting.id,
+          title: meeting.title,
+          host: res.hostFullName,
+          hostUsername: username,
+          invitees: [res.addedUsername],
+        });
+      }
+      return { success: true };
+    } else {
+      return { success: false, error: res.error };
+    }
+  };
+
+  const handleLeaveCall = () => {
+    if (confirm('Are you sure you want to leave this meeting?')) {
+      if (localStream) {
+        localStream.getTracks().forEach((t) => t.stop());
+      }
+      router.push('/dashboard');
+    }
+  };
+
+  const handleSpeakingChange = (name: string, isSpeaking: boolean) => {
+    // If it's local user, we do not need to update remote maps
+    if (name.toLowerCase() === username.toLowerCase()) return;
+
+    // Find remote peer target socket ID
+    const peerWrapper = activePeers.find((p) => p.username.toLowerCase() === name.toLowerCase());
+    if (!peerWrapper) return;
+
+    setPeerMediaStatuses((prev) => {
+      const current = prev[peerWrapper.socketId];
+      if (current && current.isSpeaking === isSpeaking) return prev;
+      return {
+        ...prev,
+        [peerWrapper.socketId]: {
+          micEnabled: current?.micEnabled ?? true,
+          camEnabled: current?.camEnabled ?? true,
+          isSpeaking,
+        },
+      };
+    });
+  };
+
   const showSecurityWarning = (message: string) => {
     setWarningToast({ visible: true, message });
     setTimeout(() => {
@@ -715,481 +720,311 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
   const appendChatMessage = (sender: string, text: string, flagged: boolean) => {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setChatMessages((prev) => [...prev, { sender, text, flagged, timestamp }]);
-    setTimeout(() => {
-      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
   };
 
   const appendSystemMessage = (text: string) => {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setChatMessages((prev) => [...prev, { sender: 'SystemAlert', text, flagged: false, timestamp }]);
-    setTimeout(() => {
-      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
   };
 
-  const toggleMic = () => {
-    if (localStream) {
-      localStream.getAudioTracks().forEach((track) => {
-        track.enabled = !micEnabled;
-      });
-      setMicEnabled(!micEnabled);
-    }
-  };
-
-  const toggleCam = () => {
-    setCamEnabled(!camEnabled);
-  };
-
-  const toggleStt = () => {
-    setSttActive(!sttActive);
-  };
-
-  const handleLeaveCall = () => {
-    if (confirm('Are you sure you want to leave this secure room?')) {
-      if (localStream) {
-        localStream.getTracks().forEach((t) => t.stop());
-      }
-      router.push('/dashboard');
-    }
-  };
-
-  // Determine focus visual status classes
-  const getPeerFocusClass = (score: number) => {
-    if (score < 40) return 'video-wrapper-drowsy';
-    if (score < 70) return 'video-wrapper-distracted';
-    return 'video-wrapper-focused';
-  };
-
-  const getPeerFocusStatusText = (score: number) => {
-    if (score < 40) return 'Drowsy';
-    if (score < 70) return 'Looking Away';
-    return 'Focused';
-  };
+  // Compile participant list for the Sidebar view
+  const participantsList = [
+    {
+      username,
+      isHost: meeting.host.toLowerCase() === username.toLowerCase(),
+      micEnabled,
+      camEnabled,
+      isSpeaking: localIsSpeaking,
+      strikes: peerScores.find((p) => p.username.toLowerCase() === username.toLowerCase())?.strikes || 0,
+    },
+    ...activePeers.map((peer) => {
+      const mediaStatus = peerMediaStatuses[peer.socketId] || {
+        micEnabled: true,
+        camEnabled: true,
+        isSpeaking: false,
+      };
+      const scoreData = peerScores.find((p) => p.username.toLowerCase() === peer.username.toLowerCase());
+      return {
+        username: peer.username,
+        isHost: meeting.host.toLowerCase() === peer.username.toLowerCase(),
+        micEnabled: mediaStatus.micEnabled,
+        camEnabled: mediaStatus.camEnabled,
+        isSpeaking: mediaStatus.isSpeaking,
+        strikes: scoreData ? scoreData.strikes : 0,
+      };
+    }),
+  ];
 
   return (
-    <div className="min-h-screen bg-[#09090B] bg-mesh text-slate-100 flex flex-col font-sans relative">
+    <div className="min-h-screen bg-[#09090B] bg-mesh text-slate-100 flex flex-col font-sans relative overflow-hidden select-none">
       
-      {/* 1. Header Area */}
-      <header className="h-16 border-b border-zinc-900 px-6 flex items-center justify-between bg-zinc-950/80 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex flex-col text-left">
-          <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-400">Secure Shield Room</span>
-          <h2 className="text-sm font-extrabold text-white line-clamp-1 mt-0.5">{meeting.title}</h2>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-mono font-bold px-2.5 py-1 bg-zinc-900 border border-zinc-850 rounded-md text-zinc-400">
-            Room ID: {meeting.id}
-          </span>
-          <span className="text-[10px] font-bold px-2.5 py-1 bg-indigo-950/40 border border-indigo-900/30 rounded-md text-indigo-300">
-            Host: @{meeting.host}
-          </span>
-        </div>
-      </header>
+      {/* Top sticky meeting room header */}
+      <MeetingHeader
+        title={meeting.title}
+        meetingId={meeting.id}
+        host={meeting.host}
+        socketConnected={socketConnected}
+        participantCount={participantsList.length}
+        startTime={meeting.createdAt}
+        onSettingsClick={() => setSettingsOpen(true)}
+      />
 
-      {/* 2. Interactive Area wrapper */}
-      <div className="flex-1 flex flex-col lg:flex-row relative">
+      {/* Main room view body */}
+      <div className="flex-1 flex flex-col lg:flex-row relative overflow-hidden">
         
-        {/* Main Streams Side */}
-        <div className="flex-grow flex flex-col p-6 gap-6 relative overflow-y-auto max-h-[calc(100vh-10rem)] lg:max-h-[calc(100vh-8rem)]">
-          
-          {/* Host distraction banner */}
-          {isHost && hostAvgFocus < 50 && hostParticipantCount > 0 && (
-            <div className="w-full bg-red-950/20 border border-red-900/60 p-4 rounded-xl flex items-center gap-4 shadow-sm animate-bounce text-left">
-              <div className="w-9 h-9 rounded-lg bg-red-900/40 flex items-center justify-center text-red-400">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div className="flex flex-col flex-1">
-                <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Low Participant Engagement Alert</span>
-                <span className="text-xs font-semibold text-white mt-0.5">Please change your environment (average attention has collapsed to {hostAvgFocus}%)</span>
-              </div>
-            </div>
-          )}
-
-          {/* Video grid */}
-          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
-            
-            {/* A. Local video user container */}
-            <div className={`bg-zinc-950 border border-zinc-900 rounded-xl relative overflow-hidden flex items-center justify-center ${
-              getPeerFocusClass(focusScore)
-            }`}>
-              {/* MediaStream Preview element */}
-              <video 
-                ref={localVideoRef} 
-                muted 
-                playsInline
-                className="w-full h-full object-cover"
-                style={{ display: camEnabled && localStream && localStream.getVideoTracks().length > 0 ? 'block' : 'none' }}
-              />
-
-              {/* Avatar placeholder card */}
-              {(!camEnabled || !localStream || localStream.getVideoTracks().length === 0) && (
-                <div className="flex flex-col items-center justify-center gap-3">
-                  <div className="w-14 h-14 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 text-xl font-bold uppercase shadow-sm">
-                    {fullName.charAt(0)}
-                  </div>
-                  <span className="text-[11px] text-zinc-500 font-semibold">Your camera is turned off</span>
-                </div>
-              )}
-
-              {/* MediaPipe Cyber mesh local Canvas overlay */}
-              {camEnabled && localStream && localStream.getVideoTracks().length > 0 && (
-                <canvas 
-                  ref={canvasRef} 
-                  className="absolute inset-0 w-full h-full pointer-events-none z-10"
-                />
-              )}
-
-              {/* Overlay labels */}
-              <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between z-20 text-left">
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-white">@{username} (You)</span>
-                  <span className="text-[10px] text-zinc-400 mt-0.5">Focus status: {getPeerFocusStatusText(focusScore)}</span>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-indigo-400 flex items-center gap-1">
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Focus: {focusScore}%</span>
-                </span>
-              </div>
-            </div>
-
-            {/* B. Remote peer streams dynamic cards */}
-            {activePeers.map((peer) => {
-              const peerScore = peerScores.find((p) => p.username.toLowerCase() === peer.username.toLowerCase());
-              const currentScore = peerScore ? peerScore.score : 100;
-              const currentStrikes = peerScore ? peerScore.strikes : 0;
-              
-              const hasVideo = peer.stream && peer.stream.getVideoTracks().length > 0;
-
-              return (
-                <div 
-                  key={peer.socketId}
-                  className={`bg-zinc-950 border border-zinc-900 rounded-xl relative overflow-hidden flex items-center justify-center ${
-                    getPeerFocusClass(currentScore)
-                  }`}
-                >
-                  <video 
-                    ref={(el) => {
-                      if (el && peer.stream && el.srcObject !== peer.stream) {
-                        el.srcObject = peer.stream;
-                        el.play().catch(e => console.warn('Peer autoplay blocked:', e));
-                      }
-                    }}
-                    playsInline
-                    className="w-full h-full object-cover"
-                    style={{ display: hasVideo ? 'block' : 'none' }}
-                  />
-
-                  {/* Remote Avatar fallback placeholder */}
-                  {!hasVideo && (
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="w-14 h-14 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 text-xl font-bold uppercase shadow-sm">
-                        {peer.username.charAt(0)}
-                      </div>
-                      <span className="text-[11px] text-zinc-500 font-semibold">Camera turned off</span>
-                    </div>
-                  )}
-
-                  {/* Remote overlay descriptors */}
-                  <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between z-20 text-left">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                        @{peer.username}
-                        {currentStrikes > 0 && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.25 bg-red-950/60 border border-red-900/60 text-red-400 rounded">
-                            Strike {currentStrikes}/3
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-[10px] text-zinc-400 mt-0.5">Focus: {getPeerFocusStatusText(currentScore)}</span>
-                    </div>
-                    {/* Only show scores on grid overlays if user is Host */}
-                    {isHost && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-indigo-400 flex items-center gap-1">
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Focus: {currentScore}%</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-          </div>
-
-          {/* Background capture processing element */}
-          <video 
-            ref={hiddenVideoRef} 
-            muted 
-            playsInline
-            style={{ display: 'none' }}
+        {/* Left main: Video layout */}
+        <div className="flex-grow flex flex-col relative overflow-y-auto custom-scrollbar pb-24 h-[calc(100vh-8rem)] lg:h-[calc(100vh-4rem)]">
+          <VideoGrid
+            localStream={localStream}
+            localUsername={username}
+            localMicEnabled={micEnabled}
+            localCamEnabled={camEnabled}
+            localIsSpeaking={localIsSpeaking}
+            activePeers={activePeers}
+            peerMediaStatuses={peerMediaStatuses}
+            meetingHost={meeting.host}
           />
-
-          {/* 3. Host Analytics Dashboard section */}
-          {isHost && (
-            <div className="bg-zinc-950 border border-zinc-900 p-6 rounded-xl flex flex-col gap-4 text-left">
-              <h4 className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 flex items-center gap-2">
-                <BarChart2 className="w-4 h-4" />
-                <span>Host Telemetry Dashboard</span>
-              </h4>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-3 bg-[#09090B] border border-zinc-900 rounded-lg">
-                  <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-wider">Average attention</span>
-                  <div className="text-lg sm:text-xl font-extrabold text-white mt-1">{hostAvgFocus}%</div>
-                </div>
-                <div className="p-3 bg-[#09090B] border border-zinc-900 rounded-lg">
-                  <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-wider">Invited online</span>
-                  <div className="text-lg sm:text-xl font-extrabold text-white mt-1">{hostParticipantCount} User(s)</div>
-                </div>
-                <div className="col-span-2 p-3 bg-[#09090B] border border-zinc-900 rounded-lg flex items-center justify-between gap-4">
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-wider">Moderation status</span>
-                    <span className="text-xs font-bold text-emerald-450 mt-1 flex items-center gap-1">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>Moderation Shield Active</span>
-                    </span>
-                  </div>
-                  <Shield className="w-5 h-5 text-emerald-500" />
-                </div>
-              </div>
-            </div>
-          )}
-
         </div>
 
-        {/* Right Tabbed Panel (Chat & Participants) */}
-        <div className={`w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-zinc-900 bg-zinc-950 flex flex-col justify-between transition-all duration-300 relative z-20 ${
-          chatCollapsed ? 'lg:w-0 lg:opacity-0 hidden lg:flex' : ''
-        }`}>
-          {/* Tabs header */}
-          <div className="flex border-b border-zinc-900 bg-zinc-950/40">
-            <button
-              onClick={() => setSidebarTab('chat')}
-              className={`flex-1 py-3.5 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${
-                sidebarTab === 'chat' 
-                  ? 'border-indigo-500 text-white font-extrabold' 
-                  : 'border-transparent text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              Secure Chat
-            </button>
-            <button
-              onClick={() => setSidebarTab('participants')}
-              className={`flex-1 py-3.5 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${
-                sidebarTab === 'participants' 
-                  ? 'border-indigo-500 text-white font-extrabold' 
-                  : 'border-transparent text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              Participants ({peerScores.length})
-            </button>
-          </div>
+        {/* Right side panels: Desktop Sidebar only */}
+        {sidebarOpen && (
+          <div className="hidden lg:flex w-80 xl:w-96 border-l border-zinc-900 bg-zinc-950 flex-col h-[calc(100vh-4rem)] shrink-0 z-20">
+            {/* Sidebar Tabs */}
+            <div className="flex border-b border-zinc-900 bg-zinc-950/40">
+              <button
+                onClick={() => setSidebarTab('chat')}
+                className={`flex-1 py-4 text-[10px] font-extrabold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
+                  sidebarTab === 'chat'
+                    ? 'border-indigo-500 text-white'
+                    : 'border-transparent text-zinc-550 hover:text-zinc-350'
+                }`}
+              >
+                Room Chat
+              </button>
+              <button
+                onClick={() => setSidebarTab('participants')}
+                className={`flex-1 py-4 text-[10px] font-extrabold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
+                  sidebarTab === 'participants'
+                    ? 'border-indigo-500 text-white'
+                    : 'border-transparent text-zinc-550 hover:text-zinc-350'
+                }`}
+              >
+                Participants ({participantsList.length})
+              </button>
+            </div>
 
-          {/* Active Tab Panel */}
-          {sidebarTab === 'participants' ? (
-            <div className="flex-grow flex flex-col p-4 gap-4 overflow-y-auto max-h-[300px] lg:max-h-[calc(100vh-14rem)]">
-              {peerScores.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-zinc-500">
-                  <Users className="w-5 h-5" />
-                  <span className="text-xs">No active participants</span>
-                </div>
+            {/* Sidebar Contents */}
+            <div className="flex-1 overflow-hidden">
+              {sidebarTab === 'chat' ? (
+                <ChatPanel
+                  messages={chatMessages}
+                  onSendMessage={handleSendMessage}
+                  username={username}
+                  typingUsers={typingUsers}
+                  onTypingStart={handleTypingStart}
+                  onTypingEnd={handleTypingEnd}
+                />
               ) : (
-                <div className="flex flex-col gap-3">
-                  {peerScores.map((peer, idx) => (
-                    <div key={idx} className="bg-zinc-900/60 border border-zinc-900 rounded-lg p-3 flex items-center justify-between text-xs text-left">
-                      <div className="flex flex-col gap-1">
-                        <span className="font-bold text-white">@{peer.username}</span>
-                        <span className="text-[10px] text-zinc-500 font-mono">
-                          Strikes: {peer.strikes}/3
-                        </span>
-                      </div>
-                      <span className={`text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded border ${
-                        peer.score < 40 
-                          ? 'bg-red-950/40 border-red-900/40 text-red-400' 
-                          : peer.score < 70
-                          ? 'bg-amber-950/40 border-amber-900/40 text-amber-400'
-                          : 'bg-emerald-950/40 border-emerald-900/40 text-emerald-400'
-                      }`}>
-                        {peer.score}% Focus
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <ParticipantSidebar 
+                  participants={participantsList} 
+                  isHost={isHost}
+                  onInviteUser={handleInviteUserLive}
+                />
               )}
             </div>
-          ) : (
-            <>
-              {/* Message List */}
-              <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-4 max-h-[300px] lg:max-h-[calc(100vh-18rem)] min-h-[200px]">
-                {chatMessages.map((msg, index) => {
-                  if (msg.sender === 'SystemAlert') {
-                    return (
-                      <div key={index} className="w-full text-center py-1.5 px-3 bg-zinc-900/40 border border-zinc-850 rounded-lg text-zinc-400 text-[10px] leading-relaxed">
-                        {msg.text}
-                      </div>
-                    );
-                  }
-
-                  const isMine = msg.sender.toLowerCase() === username.toLowerCase();
-                  return (
-                    <div 
-                      key={index}
-                      className={`flex flex-col max-w-[80%] gap-1.5 ${isMine ? 'self-end items-end' : 'self-start items-start'}`}
-                    >
-                      <div className="flex items-center gap-2 text-[10px] text-zinc-500">
-                        <span className="font-bold text-zinc-400">@{msg.sender}</span>
-                        <span>{msg.timestamp}</span>
-                      </div>
-                      
-                      <div className={`p-3 rounded-lg text-xs leading-relaxed text-left ${
-                        msg.flagged 
-                          ? 'bg-red-950/30 border border-red-900/50 text-red-400 font-medium' 
-                          : isMine
-                          ? 'bg-indigo-650 text-white'
-                          : 'bg-zinc-900 border border-zinc-850 text-zinc-200'
-                      }`}>
-                        {msg.text}
-                      </div>
-                    </div>
-                  );
-                })}
-                <div ref={chatBottomRef} />
-              </div>
-
-              {/* Chat Input Input */}
-              <form onSubmit={handleSendChatMessage} className="p-4 border-t border-zinc-900 bg-zinc-950 flex gap-2">
-                <input 
-                  type="text" 
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Send message..."
-                  className="flex-grow px-3 py-2 bg-[#09090B] border border-zinc-800 text-xs rounded-lg text-zinc-150 focus:outline-none focus:border-indigo-500/80 transition-colors"
-                />
-                <button 
-                  type="submit" 
-                  className="px-4 rounded-lg bg-indigo-600 hover:bg-indigo-550 text-white font-bold text-xs shadow cursor-pointer transition-all"
-                >
-                  Send
-                </button>
-              </form>
-            </>
-          )}
-
-        </div>
+          </div>
+        )}
 
       </div>
 
-      {/* 4. bottom control bar layout */}
-      <footer className="h-20 border-t border-zinc-900 bg-zinc-950 px-6 flex items-center justify-between z-30">
-        
-        {/* Left Status info */}
-        <div className="hidden md:flex items-center gap-3">
-          <span className="text-xs font-semibold text-zinc-400 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Shield Active
-          </span>
-        </div>
+      {/* Floating Bottom Control pill */}
+      <BottomControls
+        micEnabled={micEnabled}
+        camEnabled={camEnabled}
+        screenShareEnabled={screenShareEnabled}
+        chatOpen={sidebarOpen && sidebarTab === 'chat'}
+        participantsOpen={sidebarOpen && sidebarTab === 'participants'}
+        unreadChatCount={unreadChatCount}
+        onToggleMic={toggleMic}
+        onToggleCam={toggleCam}
+        onToggleScreenShare={toggleScreenShare}
+        onToggleChat={() => toggleSidebarTab('chat')}
+        onToggleParticipants={() => toggleSidebarTab('participants')}
+        onToggleSettings={() => setSettingsOpen(true)}
+        onLeave={handleLeaveCall}
+      />
 
-        {/* Center Control Action buttons */}
-        <div className="flex items-center gap-3 sm:gap-4 mx-auto md:mx-0">
-          
-          {/* Toggle Mic */}
-          <button 
-            onClick={toggleMic} 
-            className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm transition-all border cursor-pointer ${
-              micEnabled 
-                ? 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-850 hover:text-white' 
-                : 'bg-red-950/20 border-red-900/60 text-red-400 hover:bg-red-900/30'
-            }`}
-            title={micEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
-            aria-label={micEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
+      {/* Mobile Drawer Bottom Sheet for Chat / Participants */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden flex items-end justify-center"
+            onClick={() => setSidebarOpen(false)}
           >
-            {micEnabled ? <Mic className="w-4.5 h-4.5" /> : <MicOff className="w-4.5 h-4.5 text-red-450" />}
-          </button>
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="w-full max-h-[75vh] bg-zinc-950 border-t border-zinc-900 rounded-t-[20px] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Sheet header */}
+              <div className="px-4 py-3 flex items-center justify-between border-b border-zinc-900">
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                  {sidebarTab === 'chat' ? 'Meeting Chat' : 'Participants'}
+                </span>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="p-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-          {/* Toggle Cam */}
-          <button 
-            onClick={toggleCam} 
-            className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm transition-all border cursor-pointer ${
-              camEnabled 
-                ? 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-850 hover:text-white' 
-                : 'bg-red-950/20 border-red-900/60 text-red-400 hover:bg-red-900/30'
-            }`}
-            title={camEnabled ? 'Turn Camera Off' : 'Turn Camera On'}
-            aria-label={camEnabled ? 'Turn Camera Off' : 'Turn Camera On'}
+              {/* Sheet Body */}
+              <div className="flex-1 overflow-hidden min-h-0">
+                {sidebarTab === 'chat' ? (
+                  <ChatPanel
+                    messages={chatMessages}
+                    onSendMessage={handleSendMessage}
+                    username={username}
+                    typingUsers={typingUsers}
+                    onTypingStart={handleTypingStart}
+                    onTypingEnd={handleTypingEnd}
+                  />
+                ) : (
+                  <ParticipantSidebar 
+                    participants={participantsList} 
+                    isHost={isHost}
+                    onInviteUser={handleInviteUserLive}
+                  />
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* settings modal overlay */}
+      <AnimatePresence>
+        {settingsOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none"
           >
-            {camEnabled ? <Video className="w-4.5 h-4.5" /> : <VideoOff className="w-4.5 h-4.5 text-red-450" />}
-          </button>
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="glass-panel max-w-md w-full p-6 text-left flex flex-col gap-5 border border-zinc-800 shadow-2xl relative"
+            >
+              {/* Close settings */}
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer border border-transparent hover:border-zinc-750"
+              >
+                <X className="w-4 h-4" />
+              </button>
 
-          {/* Toggle continuous swearing voice moderation (STT) */}
-          <button 
-            onClick={toggleStt}
-            className={`px-4 h-10 rounded-lg flex items-center gap-2 font-bold text-xs transition-all border cursor-pointer ${
-              sttActive
-                ? 'bg-emerald-950/40 border-emerald-900/50 text-emerald-450 hover:bg-emerald-900/30'
-                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-855 hover:text-zinc-200'
-            }`}
-            title={sttActive ? 'Deactivate SpeechSwearingModeration' : 'Activate SpeechSwearingModeration'}
-            aria-label={sttActive ? 'Deactivate SpeechSwearingModeration' : 'Activate SpeechSwearingModeration'}
-          >
-            <Mic className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Audio Moderation</span>
-            <span className={`w-1.5 h-1.5 rounded-full ${sttActive ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-700'}`} />
-          </button>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Settings className="w-5 h-5 text-indigo-400" />
+                <span>Room Configuration</span>
+              </h3>
 
-          {/* Toggle Chat Panel Visibility (Mobile) */}
-          <button 
-            onClick={() => setChatCollapsed(!chatCollapsed)}
-            className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm transition-all border cursor-pointer lg:hidden ${
-              !chatCollapsed 
-                ? 'bg-indigo-950 border-indigo-900 text-indigo-400' 
-                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-850'
-            }`}
-            aria-label="Toggle chat panel visibility"
-          >
-            <MessageSquare className="w-4.5 h-4.5" />
-          </button>
+              <div className="h-px bg-zinc-850 w-full" />
 
-          <div className="w-px h-5 bg-zinc-900 hidden sm:block" />
+              {/* Settings configuration items */}
+              <div className="flex flex-col gap-4 py-2">
+                
+                {/* Audio Moderation Toggle */}
+                <div className="flex items-center justify-between p-3 bg-zinc-900/40 border border-zinc-900 rounded-xl">
+                  <div className="flex flex-col text-left pr-4">
+                    <span className="text-xs font-bold text-white">Audio Swearing Moderation</span>
+                    <span className="text-[10px] text-zinc-500 mt-0.5 leading-relaxed">
+                      Analyze spoken audio tracks and flag abusive verbal words in chat.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setSttActive(!sttActive)}
+                    className={`px-3.5 py-1.5 rounded-lg text-[10px] font-bold transition-all shrink-0 cursor-pointer ${
+                      sttActive
+                        ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
+                        : 'bg-zinc-800 border border-zinc-700 text-zinc-400 hover:bg-zinc-750'
+                    }`}
+                  >
+                    {sttActive ? 'ACTIVE' : 'OFF'}
+                  </button>
+                </div>
 
-          {/* Disconnect Leave Button */}
-          <button 
-            onClick={handleLeaveCall}
-            className="px-4 h-10 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all cursor-pointer shadow-sm active:scale-[0.98]"
-            aria-label="Leave secure meeting call"
-          >
-            Leave Meeting
-          </button>
+                {/* Local Room Information details */}
+                <div className="flex flex-col gap-2.5 p-3.5 bg-zinc-900/40 border border-zinc-900 rounded-xl text-[11px]">
+                  <span className="font-bold text-indigo-400 uppercase tracking-widest text-[9px]">
+                    Lobby Parameters
+                  </span>
+                  <div className="flex justify-between mt-1 text-zinc-400">
+                    <span>Host Status</span>
+                    <span className="text-white font-semibold">
+                      {isHost ? 'Meeting Owner' : 'Participant'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Active Audio Device</span>
+                    <span className="text-white truncate max-w-[180px] font-semibold">
+                      {localStream && localStream.getAudioTracks().length > 0
+                        ? 'Default System Microphone'
+                        : 'No Hardware Selected'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Active Video Source</span>
+                    <span className="text-white truncate max-w-[180px] font-semibold">
+                      {localStream && localStream.getVideoTracks().length > 0
+                        ? 'Default System Camera'
+                        : 'No Video Feed Available'}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-        </div>
-
-        {/* Right side Toggle Chat Panel desktop only */}
-        <div className="hidden lg:flex items-center">
-          <button 
-            onClick={() => setChatCollapsed(!chatCollapsed)}
-            className={`px-4 h-10 rounded-lg flex items-center gap-2 font-bold text-xs transition-all border cursor-pointer ${
-              !chatCollapsed 
-                ? 'bg-indigo-950 border-indigo-900 text-indigo-400' 
-                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-850 hover:text-zinc-200'
-            }`}
-            aria-label="Toggle chat panel"
-          >
-            <span>Meeting Chat</span>
-            <span className={`w-1.5 h-1.5 rounded-full ${!chatCollapsed ? 'bg-indigo-400' : 'bg-zinc-700'}`} />
-          </button>
-        </div>
-
-      </footer>
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="w-full py-2.5 rounded-xl bg-indigo-650 hover:bg-indigo-550 text-white font-extrabold text-xs shadow-md transition-all active:scale-[0.98] mt-2 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>Save and Exit</span>
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Floating Warnings Toast overlay */}
-      {warningToast.visible && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm bg-red-950 border border-red-900 p-4 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-down text-left">
-          <AlertTriangle className="w-5 h-5 text-red-400" />
-          <div className="flex flex-col flex-1">
-            <span className="text-[10px] uppercase font-bold tracking-widest text-red-400">Content Warning</span>
-            <span className="text-xs font-semibold text-slate-200 mt-0.5">{warningToast.message}</span>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {warningToast.visible && (
+          <motion.div
+            initial={{ y: -50, x: '-50%', opacity: 0 }}
+            animate={{ y: 0, x: '-50%', opacity: 1 }}
+            exit={{ y: -50, x: '-50%', opacity: 0 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm bg-rose-950 border border-rose-900/60 p-4 rounded-xl shadow-2xl flex items-center gap-3.5"
+          >
+            <AlertTriangle className="w-5 h-5 text-rose-450 shrink-0" />
+            <div className="flex flex-col flex-1 text-left">
+              <span className="text-[9px] uppercase font-extrabold tracking-wider text-rose-400">
+                Security Warning
+              </span>
+              <span className="text-xs font-semibold text-slate-200 mt-0.5 leading-relaxed">
+                {warningToast.message}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
