@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldAlert, AlertTriangle, X, Check, Mic, Users, Clock, Settings } from 'lucide-react';
+import { Shield, ShieldAlert, AlertTriangle, X, Check, Mic, Users, Clock, Settings } from 'lucide-react';
 
 // Import newly created custom components
 import MeetingHeader from '@/components/meeting/MeetingHeader';
@@ -13,7 +13,7 @@ import ChatPanel from '@/components/meeting/ChatPanel';
 import ParticipantSidebar from '@/components/meeting/ParticipantSidebar';
 import BottomControls from '@/components/meeting/BottomControls';
 import VideoCard, { useAudioActivity } from '@/components/meeting/VideoCard';
-import { addMeetingInviteeAction } from '@/app/dashboard/actions';
+import { addMeetingInviteeAction, endMeetingAction } from '@/app/dashboard/actions';
 
 interface MeetingDetails {
   id: string;
@@ -22,6 +22,8 @@ interface MeetingDetails {
   invitees: string[];
   status: 'scheduled' | 'active' | 'ended';
   createdAt: string;
+  isLocked?: boolean;
+  waitingRoomEnabled?: boolean;
 }
 
 interface MeetingRoomClientProps {
@@ -53,7 +55,14 @@ interface PeerScore {
 
 export default function MeetingRoomClient({ meeting, username, fullName }: MeetingRoomClientProps) {
   const router = useRouter();
-  const isHost = meeting.host.toLowerCase() === username.toLowerCase();
+  const [meetingHost, setMeetingHost] = useState(meeting.host.toLowerCase());
+  const isHost = meetingHost === username.toLowerCase();
+
+  // Waiting Room and Locking States
+  const [isLocked, setIsLocked] = useState(meeting.isLocked || false);
+  const [waitingRoomEnabled, setWaitingRoomEnabled] = useState(meeting.waitingRoomEnabled || false);
+  const [isWaitingForApproval, setIsWaitingForApproval] = useState(false);
+  const [waitingQueue, setWaitingQueue] = useState<{ socketId: string; username: string }[]>([]);
 
   // Socket & local stream states
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -232,6 +241,53 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
       socketConn.emit('join-meeting', { meetingId: meeting.id, username });
     });
 
+    socketConn.on('waiting-for-approval', () => {
+      setIsWaitingForApproval(true);
+    });
+
+    socketConn.on('waiting-approved', () => {
+      setIsWaitingForApproval(false);
+      socketConn.emit('join-meeting', { meetingId: meeting.id, username });
+    });
+
+    socketConn.on('waiting-rejected', ({ reason }) => {
+      alert(`Secure Entry Declined:\n${reason}`);
+      if (localStream) {
+        localStream.getTracks().forEach((t) => t.stop());
+      }
+      router.push('/dashboard');
+    });
+
+    socketConn.on('waiting-user-join', (data: { socketId: string; username: string }) => {
+      setWaitingQueue(prev => {
+        if (prev.some(u => u.socketId === data.socketId)) return prev;
+        return [...prev, data];
+      });
+    });
+
+    socketConn.on('meeting-locked-status', ({ isLocked: locked }) => {
+      setIsLocked(locked);
+    });
+
+    socketConn.on('waiting-room-status', ({ waitingRoomEnabled: enabled }) => {
+      setWaitingRoomEnabled(enabled);
+    });
+
+    socketConn.on('host-transferred', ({ newHost }) => {
+      setMeetingHost(newHost.toLowerCase());
+    });
+
+    socketConn.on('force-mute', () => {
+      if (localStream) {
+        localStream.getAudioTracks().forEach(track => {
+          track.enabled = false;
+        });
+        setMicEnabled(false);
+        sendMediaStatusToAll(false, camEnabled);
+      }
+      alert('🎤 The host has muted your microphone.');
+    });
+
     socketConn.on('disconnect', () => {
       setSocketConnected(false);
     });
@@ -277,6 +333,7 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
     // Handle user disconnect
     socketConn.on('user-disconnected', ({ socketId, username: peerName, kicked, reason }) => {
       cleanupPeer(socketId);
+      setWaitingQueue(prev => prev.filter(u => u.socketId !== socketId));
       if (kicked) {
         appendSystemMessage(`🚨 @${peerName} was kicked from the meeting. Reason: ${reason}`);
       } else {
@@ -317,6 +374,14 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
 
     socketConn.on('join-error', (err) => {
       alert(`Room entry error: ${err}`);
+      router.push('/dashboard');
+    });
+
+    socketConn.on('meeting-ended', ({ reason }) => {
+      alert(`Meeting Ended: ${reason}`);
+      if (localStream) {
+        localStream.getTracks().forEach((t) => t.stop());
+      }
       router.push('/dashboard');
     });
 
@@ -688,6 +753,77 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
     }
   };
 
+  const handleEndMeeting = async () => {
+    if (confirm('Are you sure you want to end this meeting for everyone?')) {
+      const res = await endMeetingAction(meeting.id);
+      if (res.success) {
+        if (socket && socket.connected) {
+          socket.emit('end-meeting', { meetingId: meeting.id });
+        }
+        if (localStream) {
+          localStream.getTracks().forEach((t) => t.stop());
+        }
+        router.push('/dashboard');
+      } else {
+        alert(`Failed to end meeting: ${res.error}`);
+      }
+    }
+  };
+
+  const handleMuteParticipant = (targetUsername: string) => {
+    const peer = activePeers.find(p => p.username.toLowerCase() === targetUsername.toLowerCase());
+    if (peer && socket) {
+      socket.emit('mute-user', { meetingId: meeting.id, targetSocketId: peer.socketId });
+    }
+  };
+
+  const handleKickParticipant = (targetUsername: string) => {
+    if (confirm(`Are you sure you want to remove @${targetUsername} from this call?`)) {
+      const peer = activePeers.find(p => p.username.toLowerCase() === targetUsername.toLowerCase());
+      if (peer && socket) {
+        socket.emit('kick-user', { meetingId: meeting.id, targetSocketId: peer.socketId, targetUsername });
+      }
+    }
+  };
+
+  const handleTransferHost = (targetUsername: string) => {
+    if (confirm(`Are you sure you want to transfer host permissions to @${targetUsername}?`)) {
+      if (socket) {
+        socket.emit('transfer-host', { meetingId: meeting.id, targetUsername });
+      }
+    }
+  };
+
+  const handleApproveWaiting = (targetSocketId: string, targetUsername: string) => {
+    if (socket) {
+      socket.emit('approve-waiting-user', { meetingId: meeting.id, targetSocketId });
+      setWaitingQueue(prev => prev.filter(u => u.socketId !== targetSocketId));
+    }
+  };
+
+  const handleRejectWaiting = (targetSocketId: string, targetUsername: string) => {
+    if (socket) {
+      socket.emit('reject-waiting-user', { meetingId: meeting.id, targetSocketId });
+      setWaitingQueue(prev => prev.filter(u => u.socketId !== targetSocketId));
+    }
+  };
+
+  const handleToggleLock = () => {
+    const nextLocked = !isLocked;
+    setIsLocked(nextLocked);
+    if (socket) {
+      socket.emit('lock-meeting', { meetingId: meeting.id, isLocked: nextLocked });
+    }
+  };
+
+  const handleToggleWaitingRoom = () => {
+    const nextEnabled = !waitingRoomEnabled;
+    setWaitingRoomEnabled(nextEnabled);
+    if (socket) {
+      socket.emit('toggle-waiting-room', { meetingId: meeting.id, waitingRoomEnabled: nextEnabled });
+    }
+  };
+
   const handleSpeakingChange = (name: string, isSpeaking: boolean) => {
     // If it's local user, we do not need to update remote maps
     if (name.toLowerCase() === username.toLowerCase()) return;
@@ -731,7 +867,7 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
   const participantsList = [
     {
       username,
-      isHost: meeting.host.toLowerCase() === username.toLowerCase(),
+      isHost: meetingHost === username.toLowerCase(),
       micEnabled,
       camEnabled,
       isSpeaking: localIsSpeaking,
@@ -746,7 +882,7 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
       const scoreData = peerScores.find((p) => p.username.toLowerCase() === peer.username.toLowerCase());
       return {
         username: peer.username,
-        isHost: meeting.host.toLowerCase() === peer.username.toLowerCase(),
+        isHost: meetingHost === peer.username.toLowerCase(),
         micEnabled: mediaStatus.micEnabled,
         camEnabled: mediaStatus.camEnabled,
         isSpeaking: mediaStatus.isSpeaking,
@@ -755,8 +891,36 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
     }),
   ];
 
+  if (isWaitingForApproval) {
+    return (
+      <div className="min-h-screen bg-[#06070a] bg-mesh flex items-center justify-center p-6 text-slate-100 font-sans">
+        <div className="glass-panel p-8 rounded-3xl max-w-md w-full text-center flex flex-col items-center gap-6 border border-slate-900 shadow-2xl">
+          <div className="relative w-16 h-16 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin absolute" />
+            <Shield className="w-6 h-6 text-indigo-400" />
+          </div>
+          <h2 className="text-xl font-extrabold text-white">Waiting Room</h2>
+          <p className="text-xs text-slate-400 leading-relaxed max-w-xs">
+            Waiting for the host to approve your entrance request. You will be connected automatically once approved.
+          </p>
+          <button 
+            onClick={() => {
+              if (localStream) {
+                localStream.getTracks().forEach((t) => t.stop());
+              }
+              router.push('/dashboard');
+            }}
+            className="w-full py-2.5 rounded-xl border border-zinc-850 text-zinc-450 hover:bg-zinc-900 font-bold text-xs shadow-md transition-all active:scale-98 cursor-pointer bg-transparent"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#09090B] bg-mesh text-slate-100 flex flex-col font-sans relative overflow-hidden select-none">
+    <div className="min-h-screen bg-[#F5F5F4] dark:bg-[#09090B] bg-mesh text-zinc-800 dark:text-slate-100 flex flex-col font-sans relative overflow-hidden select-none transition-colors duration-300">
       
       {/* Top sticky meeting room header */}
       <MeetingHeader
@@ -773,7 +937,7 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
       <div className="flex-1 flex flex-col lg:flex-row relative overflow-hidden">
         
         {/* Left main: Video layout */}
-        <div className="flex-grow flex flex-col relative overflow-y-auto custom-scrollbar pb-24 h-[calc(100vh-8rem)] lg:h-[calc(100vh-4rem)]">
+        <div className="flex-grow flex flex-col relative overflow-y-auto custom-scrollbar pb-24 h-[calc(100vh-5rem)]">
           <VideoGrid
             localStream={localStream}
             localUsername={username}
@@ -788,25 +952,25 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
 
         {/* Right side panels: Desktop Sidebar only */}
         {sidebarOpen && (
-          <div className="hidden lg:flex w-80 xl:w-96 border-l border-zinc-900 bg-zinc-950 flex-col h-[calc(100vh-4rem)] shrink-0 z-20">
+          <div className="hidden lg:flex w-80 xl:w-96 border-l border-zinc-200 dark:border-zinc-900 bg-white dark:bg-[#111827] flex-col h-[calc(100vh-5rem)] shrink-0 z-20 transition-all shadow-md dark:shadow-none">
             {/* Sidebar Tabs */}
-            <div className="flex border-b border-zinc-900 bg-zinc-950/40">
+            <div className="flex border-b border-zinc-200 dark:border-zinc-900 bg-zinc-50/50 dark:bg-[#111827]/40 shrink-0">
               <button
                 onClick={() => setSidebarTab('chat')}
-                className={`flex-1 py-4 text-[10px] font-extrabold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
+                className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
                   sidebarTab === 'chat'
-                    ? 'border-indigo-500 text-white'
-                    : 'border-transparent text-zinc-550 hover:text-zinc-350'
+                    ? 'border-landing-primary text-landing-primary dark:text-white'
+                    : 'border-transparent text-zinc-550 hover:text-zinc-800 dark:text-zinc-500 dark:hover:text-zinc-350'
                 }`}
               >
-                Room Chat
+                Room Chat {unreadChatCount > 0 && <span className="bg-rose-500 text-white rounded-full px-1.5 py-0.5 ml-1 text-[8px] font-bold">{unreadChatCount}</span>}
               </button>
               <button
                 onClick={() => setSidebarTab('participants')}
-                className={`flex-1 py-4 text-[10px] font-extrabold uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
+                className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
                   sidebarTab === 'participants'
-                    ? 'border-indigo-500 text-white'
-                    : 'border-transparent text-zinc-550 hover:text-zinc-350'
+                    ? 'border-landing-primary text-landing-primary dark:text-white'
+                    : 'border-transparent text-zinc-550 hover:text-zinc-800 dark:text-zinc-500 dark:hover:text-zinc-350'
                 }`}
               >
                 Participants ({participantsList.length})
@@ -814,7 +978,7 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
             </div>
 
             {/* Sidebar Contents */}
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden min-h-0 relative">
               {sidebarTab === 'chat' ? (
                 <ChatPanel
                   messages={chatMessages}
@@ -829,6 +993,12 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
                   participants={participantsList} 
                   isHost={isHost}
                   onInviteUser={handleInviteUserLive}
+                  onMuteUser={handleMuteParticipant}
+                  onKickUser={handleKickParticipant}
+                  onTransferHost={handleTransferHost}
+                  waitingQueue={waitingQueue}
+                  onApproveWaiting={handleApproveWaiting}
+                  onRejectWaiting={handleRejectWaiting}
                 />
               )}
             </div>
@@ -852,6 +1022,7 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
         onToggleParticipants={() => toggleSidebarTab('participants')}
         onToggleSettings={() => setSettingsOpen(true)}
         onLeave={handleLeaveCall}
+        onEndMeeting={isHost ? handleEndMeeting : undefined}
       />
 
       {/* Mobile Drawer Bottom Sheet for Chat / Participants */}
@@ -869,17 +1040,17 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="w-full max-h-[75vh] bg-zinc-950 border-t border-zinc-900 rounded-t-[20px] overflow-hidden flex flex-col"
+              className="w-full max-h-[75vh] bg-white dark:bg-[#111827] border-t border-zinc-200 dark:border-zinc-900 rounded-t-[24px] overflow-hidden flex flex-col shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Sheet header */}
-              <div className="px-4 py-3 flex items-center justify-between border-b border-zinc-900">
-                <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+              <div className="px-5 py-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-900 bg-stone-50/50 dark:bg-zinc-950/20">
+                <span className="text-xs font-black uppercase tracking-wider text-landing-primary dark:text-landing-highlight">
                   {sidebarTab === 'chat' ? 'Meeting Chat' : 'Participants'}
                 </span>
                 <button
                   onClick={() => setSidebarOpen(false)}
-                  className="p-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"
+                  className="p-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-850 dark:hover:text-white transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -916,85 +1087,102 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none"
           >
             <motion.div
               initial={{ scale: 0.95, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
-              className="glass-panel max-w-md w-full p-6 text-left flex flex-col gap-5 border border-zinc-800 shadow-2xl relative"
+              className="glass-panel max-w-md w-full p-6 text-left flex flex-col gap-5 border border-zinc-200 dark:border-zinc-800 shadow-2xl bg-white dark:bg-[#111827] relative"
             >
               {/* Close settings */}
               <button
                 onClick={() => setSettingsOpen(false)}
-                className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer border border-transparent hover:border-zinc-750"
+                className="absolute top-4 right-4 p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 transition-colors cursor-pointer border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700"
               >
                 <X className="w-4 h-4" />
               </button>
 
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Settings className="w-5 h-5 text-indigo-400" />
+              <h3 className="text-base font-black text-zinc-800 dark:text-white flex items-center gap-2">
+                <Settings className="w-5 h-5 text-landing-primary dark:text-landing-highlight" />
                 <span>Room Configuration</span>
               </h3>
 
-              <div className="h-px bg-zinc-850 w-full" />
+              <div className="h-px bg-zinc-200 dark:bg-zinc-800 w-full" />
 
               {/* Settings configuration items */}
               <div className="flex flex-col gap-4 py-2">
                 
-                {/* Audio Moderation Toggle */}
-                <div className="flex items-center justify-between p-3 bg-zinc-900/40 border border-zinc-900 rounded-xl">
-                  <div className="flex flex-col text-left pr-4">
-                    <span className="text-xs font-bold text-white">Audio Swearing Moderation</span>
-                    <span className="text-[10px] text-zinc-500 mt-0.5 leading-relaxed">
-                      Analyze spoken audio tracks and flag abusive verbal words in chat.
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setSttActive(!sttActive)}
-                    className={`px-3.5 py-1.5 rounded-lg text-[10px] font-bold transition-all shrink-0 cursor-pointer ${
-                      sttActive
-                        ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
-                        : 'bg-zinc-800 border border-zinc-700 text-zinc-400 hover:bg-zinc-750'
-                    }`}
-                  >
-                    {sttActive ? 'ACTIVE' : 'OFF'}
-                  </button>
-                </div>
-
                 {/* Local Room Information details */}
-                <div className="flex flex-col gap-2.5 p-3.5 bg-zinc-900/40 border border-zinc-900 rounded-xl text-[11px]">
-                  <span className="font-bold text-indigo-400 uppercase tracking-widest text-[9px]">
+                <div className="flex flex-col gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-900 rounded-2xl text-[11px] select-none text-left">
+                  <span className="font-black text-landing-primary dark:text-landing-highlight uppercase tracking-widest text-[9px]">
                     Lobby Parameters
                   </span>
-                  <div className="flex justify-between mt-1 text-zinc-400">
+                  
+                  <div className="flex justify-between mt-1 text-zinc-650 dark:text-zinc-400 border-b border-zinc-200/50 dark:border-zinc-800/40 pb-2">
                     <span>Host Status</span>
-                    <span className="text-white font-semibold">
+                    <span className="text-zinc-900 dark:text-white font-bold">
                       {isHost ? 'Meeting Owner' : 'Participant'}
                     </span>
                   </div>
-                  <div className="flex justify-between text-zinc-400">
+                  
+                  <div className="flex justify-between text-zinc-650 dark:text-zinc-400 border-b border-zinc-200/50 dark:border-zinc-800/40 pb-2">
                     <span>Active Audio Device</span>
-                    <span className="text-white truncate max-w-[180px] font-semibold">
+                    <span className="text-zinc-900 dark:text-white truncate max-w-[180px] font-bold">
                       {localStream && localStream.getAudioTracks().length > 0
                         ? 'Default System Microphone'
                         : 'No Hardware Selected'}
                     </span>
                   </div>
-                  <div className="flex justify-between text-zinc-400">
+                  
+                  <div className="flex justify-between text-zinc-650 dark:text-zinc-400">
                     <span>Active Video Source</span>
-                    <span className="text-white truncate max-w-[180px] font-semibold">
+                    <span className="text-zinc-900 dark:text-white truncate max-w-[180px] font-bold">
                       {localStream && localStream.getVideoTracks().length > 0
                         ? 'Default System Camera'
                         : 'No Video Feed Available'}
                     </span>
                   </div>
                 </div>
+
+                {isHost && (
+                  <div className="flex flex-col gap-3.5 p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl text-xs select-none text-left mt-2">
+                    <span className="font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-widest text-[9px]">
+                      Host Security Controls
+                    </span>
+                    
+                    <div className="flex justify-between items-center mt-1">
+                      <div className="flex flex-col">
+                        <span className="font-extrabold text-zinc-800 dark:text-white">Lock Meeting</span>
+                        <span className="text-[10px] text-zinc-500">Prevent new users from entering call.</span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={isLocked}
+                        onChange={handleToggleLock}
+                        className="w-4 h-4 accent-indigo-500 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="flex justify-between items-center mt-1">
+                      <div className="flex flex-col">
+                        <span className="font-extrabold text-zinc-800 dark:text-white">Enable Waiting Room</span>
+                        <span className="text-[10px] text-zinc-500">Approve or reject guest joining requests.</span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={waitingRoomEnabled}
+                        onChange={handleToggleWaitingRoom}
+                        className="w-4 h-4 accent-indigo-500 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button
                 onClick={() => setSettingsOpen(false)}
-                className="w-full py-2.5 rounded-xl bg-indigo-650 hover:bg-indigo-550 text-white font-extrabold text-xs shadow-md transition-all active:scale-[0.98] mt-2 cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 rounded-xl bg-landing-primary hover:bg-landing-primary/90 text-white font-extrabold text-xs shadow-md transition-all active:scale-[0.98] mt-2 cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <Check className="w-4 h-4" />
                 <span>Save and Exit</span>
@@ -1011,14 +1199,14 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
             initial={{ y: -50, x: '-50%', opacity: 0 }}
             animate={{ y: 0, x: '-50%', opacity: 1 }}
             exit={{ y: -50, x: '-50%', opacity: 0 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm bg-rose-950 border border-rose-900/60 p-4 rounded-xl shadow-2xl flex items-center gap-3.5"
+            className="fixed top-24 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm bg-rose-50 dark:bg-rose-950 border border-rose-200 dark:border-rose-900/60 p-4 rounded-2xl shadow-2xl flex items-center gap-3.5"
           >
-            <AlertTriangle className="w-5 h-5 text-rose-450 shrink-0" />
+            <AlertTriangle className="w-5 h-5 text-rose-500 dark:text-rose-450 shrink-0" />
             <div className="flex flex-col flex-1 text-left">
-              <span className="text-[9px] uppercase font-extrabold tracking-wider text-rose-400">
+              <span className="text-[9px] uppercase font-extrabold tracking-wider text-rose-500 dark:text-rose-400">
                 Security Warning
               </span>
-              <span className="text-xs font-semibold text-slate-200 mt-0.5 leading-relaxed">
+              <span className="text-xs font-semibold text-zinc-800 dark:text-slate-200 mt-0.5 leading-relaxed">
                 {warningToast.message}
               </span>
             </div>

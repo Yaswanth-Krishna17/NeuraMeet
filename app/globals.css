@@ -1,8 +1,13 @@
+/* Premium display font imports for Corpta display fallback */
+@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800;900&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=clash-display@700;800&display=swap');
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *):not(.landing-theme-lock, .landing-theme-lock *));
+
 
 :root {
   --background: 240 10% 97.5%; /* F4F4F5 */
@@ -51,6 +56,17 @@
   --color-zinc-200: #18181B;
   --color-zinc-150: #18181B;
   --color-zinc-100: #09090B;
+
+  /* Landing Page Light Theme Colors */
+  --landing-bg: #E4DDD3;
+  --landing-card: #FFFFFF;
+  --landing-primary: #00A19B;
+  --landing-accent: #4F46E5;
+  --landing-highlight: #06B6D4;
+  --landing-text-primary: #111827;
+  --landing-text-secondary: #6B7280;
+  --landing-border: rgba(17, 24, 39, 0.08);
+  --landing-glow: rgba(79, 70, 229, 0.15);
 }
 
 .dark {
@@ -99,6 +115,17 @@
   --color-zinc-200: #F4F4F5;
   --color-zinc-150: #E4E4E7;
   --color-zinc-100: #F4F4F5;
+
+  /* Landing Page Dark Theme Colors */
+  --landing-bg: #09090B;
+  --landing-card: #111827;
+  --landing-primary: #4F46E5;
+  --landing-accent: #00A19B;
+  --landing-highlight: #06B6D4;
+  --landing-text-primary: #FFFFFF;
+  --landing-text-secondary: #A1A1AA;
+  --landing-border: rgba(255, 255, 255, 0.08);
+  --landing-glow: rgba(79, 70, 229, 0.30);
 }
 
 @theme inline {
@@ -128,6 +155,20 @@
   --radius-xl: calc(var(--radius) * 1.2);
   --radius-2xl: calc(var(--radius) * 1.5);
   --radius-3xl: calc(var(--radius) * 2);
+
+  /* Redesign Fonts */
+  --font-corpta: 'Corpta', 'Unbounded', 'Clash Display', sans-serif;
+
+  /* Redesign Landing Colors */
+  --color-landing-bg: var(--landing-bg);
+  --color-landing-card: var(--landing-card);
+  --color-landing-primary: var(--landing-primary);
+  --color-landing-accent: var(--landing-accent);
+  --color-landing-highlight: var(--landing-highlight);
+  --color-landing-text-primary: var(--landing-text-primary);
+  --color-landing-text-secondary: var(--landing-text-secondary);
+  --color-landing-border: var(--landing-border);
+  --color-landing-glow: var(--landing-glow);
 }
 
 body {
@@ -260,4 +301,18 @@ body {
 }
 .animate-slide-down {
   animation: slide-down 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Force light theme variables and browser styles inside landing page wrapper */
+.landing-theme-lock {
+  --landing-bg: #E4DDD3 !important;
+  --landing-card: #FFFFFF !important;
+  --landing-primary: #00A19B !important;
+  --landing-accent: #4F46E5 !important;
+  --landing-highlight: #06B6D4 !important;
+  --landing-text-primary: #111827 !important;
+  --landing-text-secondary: #6B7280 !important;
+  --landing-border: rgba(17, 24, 39, 0.08) !important;
+  --landing-glow: rgba(79, 70, 229, 0.15) !important;
+  color-scheme: light !important;
 }

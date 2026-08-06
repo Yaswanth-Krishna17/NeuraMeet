@@ -36,26 +36,27 @@ export default function VideoGrid({
   peerMediaStatuses,
   meetingHost,
 }: VideoGridProps) {
-  const totalParticipants = activePeers.length + 1; // peers + self
-
+  
   // --- Case A: Only the local user is in the room ---
   if (activePeers.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4 max-w-5xl mx-auto w-full">
-        <VideoCard
-          stream={localStream}
-          username={localUsername}
-          isLocal={true}
-          isHost={meetingHost.toLowerCase() === localUsername.toLowerCase()}
-          micEnabled={localMicEnabled}
-          camEnabled={localCamEnabled}
-          isSpeakingOverride={localIsSpeaking}
-        />
+      <div className="flex-grow flex items-center justify-center p-6 max-w-5xl mx-auto w-full h-full">
+        <div className="w-full relative aspect-video max-h-[70vh]">
+          <VideoCard
+            stream={localStream}
+            username={localUsername}
+            isLocal={true}
+            isHost={meetingHost.toLowerCase() === localUsername.toLowerCase()}
+            micEnabled={localMicEnabled}
+            camEnabled={localCamEnabled}
+            isSpeakingOverride={localIsSpeaking}
+          />
+        </div>
       </div>
     );
   }
 
-  // --- Case B: Two participants (Local User + 1 Remote User) ---
+  // --- Case B: One Remote Peer (2 Participants total) ---
   if (activePeers.length === 1) {
     const remotePeer = activePeers[0];
     const remoteStatus = peerMediaStatuses[remotePeer.socketId] || {
@@ -65,19 +66,21 @@ export default function VideoGrid({
     };
 
     return (
-      <div className="flex-1 flex items-center justify-center p-4 max-w-5xl mx-auto w-full relative">
+      <div className="flex-grow flex items-center justify-center p-6 max-w-5xl mx-auto w-full h-full relative">
         {/* Large Remote Speaker Video */}
-        <VideoCard
-          stream={remotePeer.stream}
-          username={remotePeer.username}
-          isLocal={false}
-          isHost={meetingHost.toLowerCase() === remotePeer.username.toLowerCase()}
-          micEnabled={remoteStatus.micEnabled}
-          camEnabled={remoteStatus.camEnabled}
-          isSpeakingOverride={remoteStatus.isSpeaking}
-        />
+        <div className="w-full relative aspect-video max-h-[70vh]">
+          <VideoCard
+            stream={remotePeer.stream}
+            username={remotePeer.username}
+            isLocal={false}
+            isHost={meetingHost.toLowerCase() === remotePeer.username.toLowerCase()}
+            micEnabled={remoteStatus.micEnabled}
+            camEnabled={remoteStatus.camEnabled}
+            isSpeakingOverride={remoteStatus.isSpeaking}
+          />
+        </div>
 
-        {/* Local Self Video in Floating PiP */}
+        {/* Local Self Video floating in PiP */}
         <SelfVideo
           stream={localStream}
           username={localUsername}
@@ -89,33 +92,21 @@ export default function VideoGrid({
     );
   }
 
-  // --- Case C: Three or more participants (Grid Layout) ---
-  // Determine CSS grid columns based on count
+  // --- Case C: Two or more Remote Peers (3+ Participants total) ---
   const getGridColsClass = (count: number) => {
-    if (count <= 2) return 'grid-cols-1 md:grid-cols-2';
+    if (count === 2) return 'grid-cols-1 md:grid-cols-2';
     if (count <= 4) return 'grid-cols-1 sm:grid-cols-2';
     if (count <= 6) return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
     return 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center p-4 w-full h-full">
+    <div className="flex-grow flex items-center justify-center p-6 w-full h-full relative">
       <div
-        className={`grid gap-4 w-full max-w-7xl mx-auto auto-rows-fr ${getGridColsClass(
-          totalParticipants
+        className={`grid gap-6 w-full max-w-7xl mx-auto auto-rows-fr ${getGridColsClass(
+          activePeers.length
         )}`}
       >
-        {/* Local User Card */}
-        <VideoCard
-          stream={localStream}
-          username={localUsername}
-          isLocal={true}
-          isHost={meetingHost.toLowerCase() === localUsername.toLowerCase()}
-          micEnabled={localMicEnabled}
-          camEnabled={localCamEnabled}
-          isSpeakingOverride={localIsSpeaking}
-        />
-
         {/* Remote Peers Cards */}
         {activePeers.map((peer) => {
           const status = peerMediaStatuses[peer.socketId] || {
@@ -138,6 +129,15 @@ export default function VideoGrid({
           );
         })}
       </div>
+
+      {/* Floating self-view PiP */}
+      <SelfVideo
+        stream={localStream}
+        username={localUsername}
+        micEnabled={localMicEnabled}
+        camEnabled={localCamEnabled}
+        isSpeaking={localIsSpeaking}
+      />
     </div>
   );
 }

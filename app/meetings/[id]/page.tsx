@@ -1,6 +1,6 @@
 import { getMeetingAction } from '@/app/dashboard/actions';
 import MeetingRoomClient from './MeetingRoomClient';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, PhoneOff } from 'lucide-react';
 
 
 export default async function MeetingRoomPage({
@@ -21,6 +21,28 @@ export default async function MeetingRoomPage({
           <h2 className="text-2xl font-extrabold text-white">Access Unauthorized</h2>
           <p className="text-xs text-slate-400 leading-relaxed">
             Linkless security has blocked your request. You are not on the guest list for this meeting room, or the meeting ID does not exist.
+          </p>
+          <a 
+            href="/dashboard" 
+            className="w-full py-3 rounded-xl glowing-button text-white font-bold text-sm shadow-md"
+          >
+            Return to Dashboard
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (authCheck.meeting.status === 'ended') {
+    return (
+      <div className="min-h-screen bg-[#06070a] bg-mesh flex items-center justify-center p-6 text-slate-100 font-sans">
+        <div className="glass-panel p-8 rounded-3xl max-w-md w-full text-center flex flex-col items-center gap-6 border border-slate-900 shadow-2xl">
+          <div className="w-16 h-16 rounded-full bg-red-950/50 border border-red-900 flex items-center justify-center text-red-400 shadow-lg shadow-red-900/10">
+            <PhoneOff className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-extrabold text-white">Meeting Ended</h2>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            This meeting has already been ended by the host.
           </p>
           <a 
             href="/dashboard" 

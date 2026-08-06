@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { Clock } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface MeetingTimerProps {
-  startTime?: string; // Optional start time ISO string
+  startTime?: string;
 }
 
 export default function MeetingTimer({ startTime }: MeetingTimerProps) {
   const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
-    // Determine initial offset if startTime is provided
     let initialSeconds = 0;
     if (startTime) {
       const parsedStart = new Date(startTime).getTime();
@@ -42,9 +42,12 @@ export default function MeetingTimer({ startTime }: MeetingTimerProps) {
   };
 
   return (
-    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-zinc-900/60 border border-zinc-800 text-zinc-300">
-      <Clock className="w-3.5 h-3.5 text-indigo-400" />
-      <span className="font-mono text-white">{formatTime(seconds)}</span>
-    </div>
+    <motion.div 
+      whileHover={{ scale: 1.02 }}
+      className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/50 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] backdrop-blur-md text-zinc-700 dark:text-zinc-300 transition-all select-none"
+    >
+      <Clock className="w-4 h-4 text-landing-primary dark:text-landing-highlight animate-pulse" />
+      <span className="font-mono font-bold tracking-wider text-zinc-900 dark:text-zinc-150">{formatTime(seconds)}</span>
+    </motion.div>
   );
 }

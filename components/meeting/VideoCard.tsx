@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Video, VideoOff, ShieldCheck } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, ShieldCheck, CheckCircle, Wifi } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface VideoCardProps {
@@ -11,11 +11,10 @@ interface VideoCardProps {
   isHost: boolean;
   micEnabled: boolean;
   camEnabled: boolean;
-  isSpeakingOverride?: boolean; // Prop to override speaking state from outside
+  isSpeakingOverride?: boolean;
   onSpeakingChange?: (username: string, isSpeaking: boolean) => void;
 }
 
-// Hook to detect audio levels of a MediaStream
 export function useAudioActivity(stream: MediaStream | null, enabled: boolean) {
   const [isSpeaking, setIsSpeaking] = useState(false);
 
@@ -58,9 +57,7 @@ export function useAudioActivity(stream: MediaStream | null, enabled: boolean) {
         }
         const average = sum / bufferLength;
         
-        // Threshold for speaking detection
         setIsSpeaking(average > 12);
-        
         rafId = requestAnimationFrame(checkAudio);
       };
 
@@ -93,7 +90,6 @@ export default function VideoCard({
 }: VideoCardProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // If there's an override, we use it, otherwise we detect locally from the stream
   const detectedSpeaking = useAudioActivity(stream, micEnabled);
   const isSpeaking = isSpeakingOverride !== undefined ? isSpeakingOverride : detectedSpeaking;
 
@@ -110,7 +106,6 @@ export default function VideoCard({
     const videoElement = videoRef.current;
     if (!videoElement || !stream) return;
 
-    // Attach stream to the video tag if it changed
     if (videoElement.srcObject !== stream) {
       videoElement.srcObject = stream;
       videoElement.play().catch((err) => {
@@ -125,44 +120,50 @@ export default function VideoCard({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className={`relative w-full aspect-video rounded-[20px] overflow-hidden bg-zinc-900 border smooth-transition flex items-center justify-center group shadow-lg ${
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      className={`relative w-full aspect-video rounded-3xl overflow-hidden bg-white dark:bg-zinc-900/60 border-2 transition-all duration-300 flex items-center justify-center group shadow-md dark:shadow-none ${
         isSpeaking
-          ? 'video-glow-speaking'
-          : 'border-zinc-800'
+          ? 'border-landing-primary dark:border-landing-primary shadow-lg shadow-landing-primary/25 ring-2 ring-landing-primary/25'
+          : 'border-zinc-200/80 dark:border-zinc-800/80'
       }`}
     >
-      {/* Video Element */}
+      {/* Video Stream Element */}
       <video
         ref={videoRef}
-        muted={isLocal} // Always mute local user preview to prevent self-echo
+        muted={isLocal}
         playsInline
-        className="w-full h-full object-cover rounded-[20px]"
+        className="w-full h-full object-cover rounded-3xl"
         style={{ display: showVideo ? 'block' : 'none' }}
       />
 
       {/* Avatar Fallback Card when Video is Disabled */}
       {!showVideo && (
-        <div className="flex flex-col items-center justify-center gap-4 text-center select-none">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-650 to-indigo-500 border border-indigo-400 flex items-center justify-center text-white text-2xl font-bold uppercase shadow-lg shadow-indigo-900/10">
+        <div className="flex flex-col items-center justify-center gap-3.5 text-center select-none w-full h-full bg-stone-50 dark:bg-zinc-950/40">
+          <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-landing-primary to-landing-highlight border border-white/20 flex items-center justify-center text-white text-xl font-bold uppercase shadow-lg shadow-landing-primary/20 animate-pulse">
             {username.charAt(0)}
           </div>
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-sm font-semibold text-white">@{username}</span>
-            <span className="text-[10px] text-zinc-500 font-medium">Camera turned off</span>
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">@{username}</span>
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500/10 shrink-0" />
+            </div>
+            <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Camera turned off</span>
           </div>
         </div>
       )}
 
       {/* Overlay Status Labels (Bottom Bar) */}
-      <div className="absolute inset-x-0 bottom-0 p-3.5 bg-gradient-to-t from-black/85 via-black/40 to-transparent flex items-center justify-between z-20 pointer-events-none">
-        {/* Name and Indicators */}
+      <div className="absolute inset-x-3 bottom-3 p-2 bg-white/70 dark:bg-[#111827]/70 backdrop-blur-md border border-zinc-200/60 dark:border-white/5 rounded-2xl flex items-center justify-between z-20 pointer-events-none transition-colors shadow-[0_4px_12px_rgba(0,0,0,0.03)] select-none">
+        
+        {/* Name and verified indicators */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-white flex items-center gap-1.5 drop-shadow-md">
+          <span className="text-[11px] font-black text-zinc-800 dark:text-white flex items-center gap-1">
             {isLocal ? 'You' : `@${username}`}
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500/10 shrink-0" />
+            
             {isHost && (
-              <span className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.25 bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 rounded-md">
-                <ShieldCheck className="w-2.5 h-2.5 text-indigo-400" />
+              <span className="flex items-center gap-0.5 text-[8px] font-bold px-1.5 py-0.5 bg-landing-primary/10 border border-landing-primary/30 text-landing-primary dark:text-indigo-400 rounded-lg">
+                <ShieldCheck className="w-2.5 h-2.5 text-landing-primary dark:text-indigo-400" />
                 <span>Host</span>
               </span>
             )}
@@ -170,44 +171,51 @@ export default function VideoCard({
 
           {/* Equalizer animation when speaking */}
           {isSpeaking && (
-            <div className="flex items-center gap-0.5 h-3.5 w-4 px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-400/30 rounded-md">
-              <span className="eq-bar" />
-              <span className="eq-bar" />
-              <span className="eq-bar" />
-              <span className="eq-bar" />
+            <div className="flex items-center gap-0.5 h-3 w-3 px-0.5 bg-emerald-500/15 border border-emerald-500/25 rounded-md">
+              <span className="eq-bar bg-emerald-500" />
+              <span className="eq-bar bg-emerald-500" />
+              <span className="eq-bar bg-emerald-500" />
+              <span className="eq-bar bg-emerald-500" />
             </div>
           )}
         </div>
 
-        {/* Media indicators (mic/camera status badges) */}
+        {/* Media & connection badges (mic/camera status) */}
         <div className="flex items-center gap-1.5">
-          {/* Mic Badge */}
+          {/* Signal Wifi indicator */}
+          {!isLocal && (
+            <div className="w-6 h-6 rounded-lg bg-zinc-100/50 dark:bg-zinc-950/50 border border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-center text-emerald-500">
+              <Wifi className="w-3 h-3 text-emerald-500" />
+            </div>
+          )}
+
+          {/* Mic Status */}
           <div
             className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${
               micEnabled
-                ? 'bg-zinc-950/70 border-zinc-800 text-zinc-300'
-                : 'bg-rose-500/20 border-rose-400/30 text-rose-400'
+                ? 'bg-zinc-100/50 dark:bg-zinc-950/50 border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-300'
+                : 'bg-rose-500/15 border-rose-500/30 text-rose-500'
             }`}
           >
             {micEnabled ? (
-              <Mic className="w-3.5 h-3.5" />
+              <Mic className="w-3 h-3" />
             ) : (
-              <MicOff className="w-3.5 h-3.5" />
+              <MicOff className="w-3 h-3" />
             )}
           </div>
 
-          {/* Cam Badge */}
+          {/* Cam Status */}
           <div
             className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${
               camEnabled
-                ? 'bg-zinc-950/70 border-zinc-800 text-zinc-300'
-                : 'bg-rose-500/20 border-rose-400/30 text-rose-400'
+                ? 'bg-zinc-100/50 dark:bg-zinc-950/50 border-zinc-200/80 dark:border-zinc-800/80 text-zinc-650 dark:text-zinc-300'
+                : 'bg-rose-500/15 border-rose-500/30 text-rose-500'
             }`}
           >
             {camEnabled ? (
-              <Video className="w-3.5 h-3.5" />
+              <Video className="w-3 h-3" />
             ) : (
-              <VideoOff className="w-3.5 h-3.5" />
+              <VideoOff className="w-3 h-3" />
             )}
           </div>
         </div>

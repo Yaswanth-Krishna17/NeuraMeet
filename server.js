@@ -5,7 +5,16 @@ import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import { parse } from 'url';
 
-import { getMeeting, updateMeetingStatus } from './lib/db.js';
+import {
+  getMeeting,
+  updateMeetingStatus,
+  updateMeetingHost,
+  updateMeetingLock,
+  updateMeetingWaitingRoom,
+  addMeetingAttendee,
+  removeMeetingAttendee,
+  createNotification
+} from './lib/db.js';
 import { moderateContent } from './lib/moderator.js';
 
 dotenv.config({ path: '.env.local' });
@@ -33,6 +42,9 @@ nextApp.prepare().then(() => {
   // Format: meetingId => { host, title, participants: Map(socketId => { username, focusScore, strikes }) }
   const activeRooms = new Map();
 
+  // In-Memory registry tracking user online statuses: username => status ('online' | 'in-meeting' | 'busy' | 'offline')
+  const userStatuses = new Map();
+
   io.on('connection', (socket) => {
     let socketUsername = null;
     let activeMeetingId = null;
@@ -46,6 +58,13 @@ nextApp.prepare().then(() => {
         activeSockets.set(socketUsername, []);
       }
       activeSockets.get(socketUsername).push(socket.id);
+
+      // Set user status to online
+      if (!userStatuses.has(socketUsername) || userStatuses.get(socketUsername) === 'offline') {
+        userStatuses.set(socketUsername, 'online');
+        io.emit('status-changed', { username: socketUsername, status: 'online' });
+      }
+
       console.log(`[SOCKET] Registered user socket: ${socketUsername} -> ${socket.id}`);
     });
 
@@ -61,11 +80,58 @@ nextApp.prepare().then(() => {
         return socket.emit('join-error', 'Meeting does not exist.');
       }
 
+      // Check if meeting has ended
+      if (meeting.status === 'ended' || meeting.status === 'cancelled') {
+        return socket.emit('join-error', 'This meeting has ended or was cancelled.');
+      }
+
       // Verify authorized linkless entry
       const isHost = meeting.host === username;
       const isInvited = meeting.invitees.includes(username);
       if (!isHost && !isInvited) {
         return socket.emit('join-error', 'You are not authorized or invited to join this room.');
+      }
+
+      // Check if room is locked
+      const currentRoomState = activeRooms.get(meetingId);
+      const isLocked = currentRoomState ? currentRoomState.isLocked : meeting.isLocked;
+      if (isLocked && !isHost) {
+        return socket.emit('join-error', 'This meeting is locked by the host.');
+      }
+
+      // Check if waiting room is enabled
+      const waitingRoomEnabled = currentRoomState ? currentRoomState.waitingRoomEnabled : meeting.waitingRoomEnabled;
+      const isApproved = currentRoomState && currentRoomState.approvedParticipants && currentRoomState.approvedParticipants.has(username);
+
+      if (waitingRoomEnabled && !isHost && !isApproved) {
+        // Initialize room state if not present
+        if (!activeRooms.has(meetingId)) {
+          activeRooms.set(meetingId, {
+            host: meeting.host,
+            title: meeting.title,
+            participants: new Map(),
+            waitingQueue: new Map(),
+            approvedParticipants: new Set(),
+            isLocked: meeting.isLocked,
+            waitingRoomEnabled: meeting.waitingRoomEnabled
+          });
+        }
+        
+        const room = activeRooms.get(meetingId);
+        if (!room.waitingQueue) room.waitingQueue = new Map();
+        room.waitingQueue.set(socket.id, username);
+        
+        socket.join(meetingId);
+        socket.emit('waiting-for-approval');
+        
+        // Notify host
+        io.to(meetingId).emit('waiting-user-join', {
+          socketId: socket.id,
+          username
+        });
+        
+        console.log(`[SOCKET] User ${username} (${socket.id}) placed in waiting queue for room: ${meetingId}`);
+        return;
       }
 
       socket.join(meetingId);
@@ -76,7 +142,11 @@ nextApp.prepare().then(() => {
         activeRooms.set(meetingId, {
           host: meeting.host,
           title: meeting.title,
-          participants: new Map()
+          participants: new Map(),
+          waitingQueue: new Map(),
+          approvedParticipants: new Set(),
+          isLocked: meeting.isLocked,
+          waitingRoomEnabled: meeting.waitingRoomEnabled
         });
         await updateMeetingStatus(meetingId, 'active');
       }
@@ -87,6 +157,13 @@ nextApp.prepare().then(() => {
         focusScore: 100, // Starts fully focused
         strikes: 0      // 0 strikes
       });
+
+      // Track attendee join in DB
+      await addMeetingAttendee(meetingId, username);
+
+      // Update user status to in-meeting
+      userStatuses.set(username, 'in-meeting');
+      io.emit('status-changed', { username, status: 'in-meeting' });
 
       // Notify other peers in room to trigger standard WebRTC signaling connections
       socket.to(meetingId).emit('user-connected', {
@@ -227,6 +304,169 @@ nextApp.prepare().then(() => {
       }
     });
 
+    // End meeting handler (triggered by host)
+    socket.on('end-meeting', async ({ meetingId }) => {
+      if (!meetingId) return;
+      const room = activeRooms.get(meetingId);
+      if (!room) return;
+
+      const normalizedHost = room.host.toLowerCase().trim();
+      const normalizedUsername = socketUsername ? socketUsername.toLowerCase().trim() : '';
+
+      if (normalizedHost === normalizedUsername) {
+        console.log(`[MEETING] Host ${socketUsername} ended meeting ${meetingId}`);
+
+        // Update status in MongoDB
+        await updateMeetingStatus(meetingId, 'ended');
+
+        // Notify all participants in the room
+        io.to(meetingId).emit('meeting-ended', { reason: 'The host has ended the meeting.' });
+
+        // Clean up from activeRooms map
+        activeRooms.delete(meetingId);
+      } else {
+        console.warn(`[MEETING] Unauthorized attempt to end meeting ${meetingId} by ${socketUsername}`);
+      }
+    });
+
+    // Room Lock Toggle
+    socket.on('lock-meeting', async ({ meetingId, isLocked }) => {
+      if (!meetingId) return;
+      const room = activeRooms.get(meetingId);
+      if (!room) return;
+
+      if (room.host.toLowerCase().trim() === (socketUsername || '').toLowerCase().trim()) {
+        room.isLocked = isLocked;
+        await updateMeetingLock(meetingId, isLocked);
+        io.to(meetingId).emit('meeting-locked-status', { isLocked });
+        console.log(`[MEETING] Lock status updated for ${meetingId} -> ${isLocked}`);
+      }
+    });
+
+    // Toggle Waiting Room
+    socket.on('toggle-waiting-room', async ({ meetingId, waitingRoomEnabled }) => {
+      if (!meetingId) return;
+      const room = activeRooms.get(meetingId);
+      if (!room) return;
+
+      if (room.host.toLowerCase().trim() === (socketUsername || '').toLowerCase().trim()) {
+        room.waitingRoomEnabled = waitingRoomEnabled;
+        await updateMeetingWaitingRoom(meetingId, waitingRoomEnabled);
+        io.to(meetingId).emit('waiting-room-status', { waitingRoomEnabled });
+        console.log(`[MEETING] Waiting room status updated for ${meetingId} -> ${waitingRoomEnabled}`);
+      }
+    });
+
+    // Approve Waiting User
+    socket.on('approve-waiting-user', async ({ meetingId, targetSocketId }) => {
+      if (!meetingId || !targetSocketId) return;
+      const room = activeRooms.get(meetingId);
+      if (!room) return;
+
+      if (room.host.toLowerCase().trim() === (socketUsername || '').toLowerCase().trim()) {
+        if (!room.waitingQueue) return;
+        const targetUsername = room.waitingQueue.get(targetSocketId);
+        if (!targetUsername) return;
+
+        room.waitingQueue.delete(targetSocketId);
+        if (!room.approvedParticipants) room.approvedParticipants = new Set();
+        room.approvedParticipants.add(targetUsername);
+
+        // Add to active participants
+        room.participants.set(targetSocketId, {
+          username: targetUsername,
+          focusScore: 100,
+          strikes: 0
+        });
+
+        // Add attendee in DB
+        await addMeetingAttendee(meetingId, targetUsername);
+
+        // Notify user
+        io.to(targetSocketId).emit('waiting-approved');
+
+        // Notify other room members
+        io.to(meetingId).emit('user-connected', {
+          socketId: targetSocketId,
+          username: targetUsername
+        });
+
+        console.log(`[WAITING-ROOM] Approved user ${targetUsername} (${targetSocketId}) in ${meetingId}`);
+      }
+    });
+
+    // Reject Waiting User
+    socket.on('reject-waiting-user', ({ meetingId, targetSocketId }) => {
+      if (!meetingId || !targetSocketId) return;
+      const room = activeRooms.get(meetingId);
+      if (!room) return;
+
+      if (room.host.toLowerCase().trim() === (socketUsername || '').toLowerCase().trim()) {
+        if (!room.waitingQueue) return;
+        const targetUsername = room.waitingQueue.get(targetSocketId);
+        if (!targetUsername) return;
+
+        room.waitingQueue.delete(targetSocketId);
+
+        // Notify user
+        io.to(targetSocketId).emit('waiting-rejected', { reason: 'The host has declined your entry request.' });
+        console.log(`[WAITING-ROOM] Rejected user ${targetUsername} (${targetSocketId}) in ${meetingId}`);
+      }
+    });
+
+    // Mute User (Host command)
+    socket.on('mute-user', ({ meetingId, targetSocketId }) => {
+      if (!meetingId || !targetSocketId) return;
+      const room = activeRooms.get(meetingId);
+      if (!room) return;
+
+      if (room.host.toLowerCase().trim() === (socketUsername || '').toLowerCase().trim()) {
+        io.to(targetSocketId).emit('force-mute');
+        console.log(`[MEETING] Host muted socket ${targetSocketId} in ${meetingId}`);
+      }
+    });
+
+    // Kick User (Host command)
+    socket.on('kick-user', ({ meetingId, targetSocketId, targetUsername }) => {
+      if (!meetingId || !targetSocketId) return;
+      const room = activeRooms.get(meetingId);
+      if (!room) return;
+
+      if (room.host.toLowerCase().trim() === (socketUsername || '').toLowerCase().trim()) {
+        handleKickUser(meetingId, targetSocketId, targetUsername, 'Removed by meeting host.');
+      }
+    });
+
+    // Transfer Host
+    socket.on('transfer-host', async ({ meetingId, targetUsername }) => {
+      if (!meetingId || !targetUsername) return;
+      const room = activeRooms.get(meetingId);
+      if (!room) return;
+
+      if (room.host.toLowerCase().trim() === (socketUsername || '').toLowerCase().trim()) {
+        const targetClean = targetUsername.toLowerCase().trim();
+        room.host = targetClean;
+        await updateMeetingHost(meetingId, targetClean);
+
+        io.to(meetingId).emit('host-transferred', { newHost: targetClean });
+        console.log(`[MEETING] Host role transferred to ${targetClean} in ${meetingId}`);
+      }
+    });
+
+    // Get active user status query
+    socket.on('get-user-status', ({ username }, callback) => {
+      if (!username) return;
+      const cleanU = username.toLowerCase().trim();
+      const status = userStatuses.get(cleanU) || 'offline';
+      if (callback) callback({ status });
+    });
+
+    socket.on('get-all-statuses', (callback) => {
+      if (callback) {
+        callback(Object.fromEntries(userStatuses));
+      }
+    });
+
     // Linkless socket room invitation dispatcher
     socket.on('meeting-created', ({ meetingId, title, host, hostUsername, invitees }) => {
       if (!invitees || !Array.isArray(invitees)) return;
@@ -277,6 +517,10 @@ nextApp.prepare().then(() => {
         const filtered = list.filter(sid => sid !== socket.id);
         if (filtered.length === 0) {
           activeSockets.delete(socketUsername);
+
+          // Last socket disconnected: set user status to offline
+          userStatuses.set(socketUsername, 'offline');
+          io.emit('status-changed', { username: socketUsername, status: 'offline' });
         } else {
           activeSockets.set(socketUsername, filtered);
         }
@@ -287,10 +531,26 @@ nextApp.prepare().then(() => {
         const room = activeRooms.get(activeMeetingId);
         room.participants.delete(socket.id);
 
+        if (room.waitingQueue) {
+          room.waitingQueue.delete(socket.id);
+        }
+
         socket.to(activeMeetingId).emit('user-disconnected', {
           socketId: socket.id,
           username: socketUsername
         });
+
+        // Track attendee leaving in DB
+        if (socketUsername) {
+          await removeMeetingAttendee(activeMeetingId, socketUsername);
+
+          // Revert status to online if still connected on other tabs
+          const userSocks = activeSockets.get(socketUsername);
+          if (userSocks && userSocks.length > 0) {
+            userStatuses.set(socketUsername, 'online');
+            io.emit('status-changed', { username: socketUsername, status: 'online' });
+          }
+        }
 
         // If room is empty, flag database status and prune memory registry
         if (room.participants.size === 0) {
