@@ -139,8 +139,8 @@ export default function DashboardLayout({
     const isActive = pathname === path || (path !== '/dashboard' && pathname.startsWith(path));
     return `text-[11px] font-black uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5 ${
       isActive
-        ? 'bg-primary/10 text-primary dark:bg-primary dark:text-white shadow-sm'
-        : 'text-secondary-text hover:text-primary-text hover:bg-zinc-100/50 dark:hover:bg-zinc-900/40'
+        ? 'bg-soft-primary text-primary dark:bg-primary dark:text-white shadow-sm'
+        : 'bg-transparent text-secondary-text hover:text-primary-text hover:bg-sec-surface dark:hover:bg-zinc-900/40 animate-none'
     }`;
   };
 
@@ -169,7 +169,7 @@ export default function DashboardLayout({
               </Link>
               
               {/* SaaS Dashboard Section Tabs */}
-              <div className="hidden md:flex items-center gap-1 bg-zinc-100/50 dark:bg-zinc-900/10 p-1 rounded-2xl border border-border">
+              <div className="hidden md:flex items-center gap-1.5 p-0 bg-transparent border-0 dark:bg-zinc-900/10 dark:p-1 dark:rounded-2xl dark:border dark:border-border">
                 <Link href="/dashboard" className={getLinkClass('/dashboard')}>
                   <LayoutDashboard className="w-3.5 h-3.5" />
                   <span>Dashboard</span>
@@ -193,7 +193,7 @@ export default function DashboardLayout({
               <ThemeToggle />
               
               {/* Notification icon */}
-              <Link href="/dashboard/notifications" className="relative p-2 rounded-xl hover:bg-zinc-100/50 dark:hover:bg-zinc-900/40 text-secondary-text hover:text-primary-text transition-all cursor-pointer">
+              <Link href="/dashboard/notifications" className="relative p-2 rounded-xl bg-transparent hover:bg-sec-surface dark:hover:bg-zinc-900/40 text-secondary-text hover:text-primary-text transition-all cursor-pointer">
                 <Bell className="w-4.5 h-4.5" />
                 {unreadCount > 0 && (
                   <span className="absolute top-1 right-1 h-4 w-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-md animate-pulse">

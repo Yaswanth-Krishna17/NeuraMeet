@@ -1001,10 +1001,10 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="bg-surface border border-border p-3 rounded-xl col-span-2 flex items-center gap-2.5 text-[11px] text-secondary-text font-semibold shadow-sm">
-                <Shield className="w-4 h-4 text-success-custom shrink-0" />
+              <div className="bg-[#ECFDF5] border border-[#A7F3D0] dark:bg-surface dark:border-border p-3 rounded-xl col-span-2 flex items-center gap-2.5 text-[11px] text-[#047857] dark:text-secondary-text font-semibold shadow-sm">
+                <Shield className="w-4 h-4 text-[#059669] dark:text-success-custom shrink-0" />
                 <span>
-                  <strong className="text-primary-text">LINKLESS ACCESS</strong>: Invite-only secure whitelist active.
+                  <strong className="text-[#047857] dark:text-primary-text">LINKLESS ACCESS</strong>: Invite-only secure whitelist active.
                 </span>
               </div>
             </div>

@@ -185,22 +185,21 @@ export default function InvitationsPage() {
 
   return (
     <div className="flex flex-col gap-6 select-none max-w-5xl mx-auto w-full text-left">
-      
-      {/* Header Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-900/80 pb-6">
+            {/* Header Info */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-divider pb-6">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2 uppercase">
-            <Inbox className="w-6 h-6 text-indigo-500" />
+          <h1 className="text-2xl font-black tracking-tight text-primary-text flex items-center gap-2 uppercase">
+            <Inbox className="w-6 h-6 text-primary" />
             <span>Invitation Inbox</span>
           </h1>
-          <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1 font-semibold">
+          <p className="text-xs text-secondary-text mt-1 font-semibold">
             Real-time secure meeting invitations routed directly to your username binding.
           </p>
         </div>
 
         {/* Security badge */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-805 bg-white/50 dark:bg-zinc-950/20 text-[10px] font-extrabold text-indigo-605 dark:text-indigo-400 uppercase tracking-wider self-start sm:self-auto">
-          <Shield className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#A7F3D0] bg-[#ECFDF5] text-[10px] font-extrabold text-[#047857] dark:border-zinc-800 dark:bg-zinc-955/20 dark:text-indigo-400 uppercase tracking-wider self-start sm:self-auto">
+          <Shield className="w-3.5 h-3.5 text-[#059669] dark:text-indigo-400" />
           <span>Username Auth Whitelisted</span>
         </div>
       </div>
@@ -209,7 +208,7 @@ export default function InvitationsPage() {
         // Loading Skeletons
         <div className="flex flex-col gap-4">
           {[1, 2, 3].map(idx => (
-            <div key={idx} className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-900 flex flex-col gap-3 animate-pulse">
+            <div key={idx} className="p-5 rounded-2xl border border-border dark:border-zinc-900 flex flex-col gap-3 animate-pulse">
               <div className="h-4 bg-zinc-200 dark:bg-zinc-850 rounded w-1/3" />
               <div className="h-3 bg-zinc-200 dark:bg-zinc-850 rounded w-2/3" />
             </div>
@@ -222,30 +221,30 @@ export default function InvitationsPage() {
           <div className="flex flex-col gap-3">
             <button 
               onClick={() => setCollapsedGroups(prev => ({ ...prev, pending: !prev.pending }))}
-              className="flex items-center justify-between w-full pb-2 border-b border-zinc-200/80 dark:border-zinc-900/80 text-left cursor-pointer group"
+              className="flex items-center justify-between w-full pb-2 border-b border-divider text-left cursor-pointer group"
             >
               <div className="flex items-center gap-2 select-none">
-                <span className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-white">
+                <span className="text-xs font-black uppercase tracking-widest text-primary-text">
                   Pending Invitations
                 </span>
                 {pendingInvites.length > 0 ? (
-                  <span className="px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-[10px] font-black uppercase tracking-widest">
+                  <span className="px-2 py-0.5 rounded bg-[#EEEBFF] border border-[#EEEBFF] text-[#5B4BDB] dark:bg-indigo-500/10 dark:border-indigo-500/20 dark:text-indigo-400 text-[10px] font-black uppercase tracking-widest">
                     {pendingInvites.length} Active
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-400 text-[10px] font-extrabold">
+                  <span className="px-2 py-0.5 rounded bg-secondary dark:bg-zinc-900 text-secondary-text text-[10px] font-extrabold">
                     0
                   </span>
                 )}
               </div>
-              <span className="text-[10px] uppercase font-black tracking-wider text-zinc-450 group-hover:text-zinc-650 transition-colors">
+              <span className="text-[10px] uppercase font-black tracking-wider text-[#64748B] group-hover:text-zinc-650 dark:group-hover:text-white transition-colors">
                 {collapsedGroups.pending ? 'Expand' : 'Collapse'}
               </span>
             </button>
             
             {!collapsedGroups.pending && (
               pendingInvites.length === 0 ? (
-                <p className="text-xs text-zinc-450 dark:text-zinc-555 italic py-4">No pending invitations found.</p>
+                <p className="text-xs text-[#64748B] dark:text-zinc-555 italic py-4">No pending invitations found.</p>
               ) : (
                 <div className="flex flex-col gap-3.5">
                   {pendingInvites.map(renderInvitationRow)}
@@ -258,30 +257,30 @@ export default function InvitationsPage() {
           <div className="flex flex-col gap-3">
             <button 
               onClick={() => setCollapsedGroups(prev => ({ ...prev, accepted: !prev.accepted }))}
-              className="flex items-center justify-between w-full pb-2 border-b border-zinc-200/80 dark:border-zinc-900/80 text-left cursor-pointer group"
+              className="flex items-center justify-between w-full pb-2 border-b border-divider text-left cursor-pointer group"
             >
               <div className="flex items-center gap-2 select-none">
-                <span className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-white">
+                <span className="text-xs font-black uppercase tracking-widest text-primary-text">
                   Accepted Invitations
                 </span>
                 {acceptedInvites.length > 0 ? (
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-widest">
+                  <span className="px-2 py-0.5 rounded bg-[#EEEBFF] border border-[#EEEBFF] text-[#5B4BDB] dark:bg-[#EEEBFF]/10 dark:border-emerald-500/20 dark:text-emerald-450 text-[10px] font-black uppercase tracking-widest">
                     {acceptedInvites.length} Whitelisted
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-400 text-[10px] font-extrabold">
+                  <span className="px-2 py-0.5 rounded bg-secondary dark:bg-zinc-900 text-secondary-text text-[10px] font-extrabold">
                     0
                   </span>
                 )}
               </div>
-              <span className="text-[10px] uppercase font-black tracking-wider text-zinc-450 group-hover:text-zinc-650 transition-colors">
+              <span className="text-[10px] uppercase font-black tracking-wider text-[#64748B] group-hover:text-zinc-650 dark:group-hover:text-white transition-colors">
                 {collapsedGroups.accepted ? 'Expand' : 'Collapse'}
               </span>
             </button>
             
             {!collapsedGroups.accepted && (
               acceptedInvites.length === 0 ? (
-                <p className="text-xs text-zinc-450 dark:text-zinc-555 italic py-4">No accepted invitations found.</p>
+                <p className="text-xs text-[#64748B] dark:text-zinc-555 italic py-4">No accepted invitations found.</p>
               ) : (
                 <div className="flex flex-col gap-3.5">
                   {acceptedInvites.map(renderInvitationRow)}
@@ -294,30 +293,30 @@ export default function InvitationsPage() {
           <div className="flex flex-col gap-3">
             <button 
               onClick={() => setCollapsedGroups(prev => ({ ...prev, past: !prev.past }))}
-              className="flex items-center justify-between w-full pb-2 border-b border-zinc-200/80 dark:border-zinc-900/80 text-left cursor-pointer group"
+              className="flex items-center justify-between w-full pb-2 border-b border-divider text-left cursor-pointer group"
             >
               <div className="flex items-center gap-2 select-none">
-                <span className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-white">
+                <span className="text-xs font-black uppercase tracking-widest text-primary-text">
                   Past / Declined
                 </span>
                 {pastInvites.length > 0 ? (
-                  <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-450 text-[10px] font-black">
+                  <span className="px-2 py-0.5 rounded bg-secondary dark:bg-zinc-900 text-secondary-text text-[10px] font-black">
                     {pastInvites.length} Records
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-400 text-[10px] font-extrabold">
+                  <span className="px-2 py-0.5 rounded bg-secondary dark:bg-zinc-900 text-secondary-text text-[10px] font-extrabold">
                     0
                   </span>
                 )}
               </div>
-              <span className="text-[10px] uppercase font-black tracking-wider text-zinc-450 group-hover:text-zinc-655 transition-colors">
+              <span className="text-[10px] uppercase font-black tracking-wider text-[#64748B] group-hover:text-zinc-655 dark:group-hover:text-white transition-colors">
                 {collapsedGroups.past ? 'Expand' : 'Collapse'}
               </span>
             </button>
             
             {!collapsedGroups.past && (
               pastInvites.length === 0 ? (
-                <p className="text-xs text-zinc-455 dark:text-zinc-555 italic py-4">No past or declined invitations.</p>
+                <p className="text-xs text-[#64748B] dark:text-zinc-555 italic py-4">No past or declined invitations.</p>
               ) : (
                 <div className="flex flex-col gap-3.5">
                   {pastInvites.map(renderInvitationRow)}

@@ -132,36 +132,36 @@ export default function MeetingHistoryPage() {
       
       {/* Header section */}
       <div>
-        <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2 uppercase">
-          <History className="w-6 h-6 text-indigo-500" />
+        <h1 className="text-2xl font-black tracking-tight text-primary-text flex items-center gap-2 uppercase">
+          <History className="w-6 h-6 text-primary" />
           <span>Meetings</span>
         </h1>
-        <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1 font-semibold">
+        <p className="text-xs text-secondary-text mt-1 font-semibold">
           Review, filter, and inspect details of all meetings on the whitelist registry.
         </p>
       </div>
 
       {/* Filters, sorting and search container */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-white/40 dark:bg-[#111827]/20 border border-zinc-250/50 dark:border-zinc-900/60 p-4 rounded-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-surface dark:bg-[#111827]/20 border border-border p-4 rounded-[14px] shadow-sm">
         {/* Search */}
         <div className="relative lg:col-span-2">
-          <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-zinc-400" />
+          <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-zinc-450" />
           <input
             type="text"
             placeholder="Search by meeting title..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 px-10 py-2.5 rounded-xl text-xs focus:outline-none focus:border-indigo-500 transition-all font-semibold"
+            className="w-full bg-subtle-surface dark:bg-zinc-950 border border-border dark:border-zinc-850 px-10 py-2.5 rounded-xl text-xs text-primary-text placeholder-muted-text focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all font-semibold"
           />
         </div>
 
         {/* Status Filter */}
         <div className="relative">
-          <Filter className="absolute left-3.5 top-3.5 w-3.5 h-3.5 text-zinc-400" />
+          <Filter className="absolute left-3.5 top-3.5 w-3.5 h-3.5 text-zinc-450" />
           <select
             value={statusFilter}
             onChange={e => { setPage(1); setStatusFilter(e.target.value); }}
-            className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 pl-10 pr-4 py-2.5 rounded-xl text-xs focus:outline-none focus:border-indigo-500 transition-all font-semibold cursor-pointer appearance-none"
+            className="w-full bg-subtle-surface dark:bg-zinc-950 border border-border dark:border-zinc-850 pl-10 pr-4 py-2.5 rounded-xl text-xs text-secondary-text dark:text-zinc-300 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all font-semibold cursor-pointer appearance-none"
           >
             <option value="all">All Statuses</option>
             <option value="scheduled">Scheduled</option>
@@ -173,11 +173,11 @@ export default function MeetingHistoryPage() {
 
         {/* Host Filter */}
         <div className="relative">
-          <User className="absolute left-3.5 top-3.5 w-3.5 h-3.5 text-zinc-400" />
+          <User className="absolute left-3.5 top-3.5 w-3.5 h-3.5 text-zinc-450" />
           <select
             value={hostFilter}
             onChange={e => { setPage(1); setHostFilter(e.target.value); }}
-            className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 pl-10 pr-4 py-2.5 rounded-xl text-xs focus:outline-none focus:border-indigo-500 transition-all font-semibold cursor-pointer appearance-none"
+            className="w-full bg-subtle-surface dark:bg-zinc-950 border border-border dark:border-zinc-850 pl-10 pr-4 py-2.5 rounded-xl text-xs text-secondary-text dark:text-zinc-300 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all font-semibold cursor-pointer appearance-none"
           >
             <option value="all">All Roles</option>
             <option value="hosted">Hosted by Me</option>
@@ -187,11 +187,11 @@ export default function MeetingHistoryPage() {
 
         {/* Sorting */}
         <div className="relative">
-          <SortAsc className="absolute left-3.5 top-3.5 w-3.5 h-3.5 text-zinc-400" />
+          <SortAsc className="absolute left-3.5 top-3.5 w-3.5 h-3.5 text-zinc-450" />
           <select
             value={sortBy}
             onChange={e => { setPage(1); setSortBy(e.target.value); }}
-            className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 pl-10 pr-4 py-2.5 rounded-xl text-xs focus:outline-none focus:border-indigo-500 transition-all font-semibold cursor-pointer appearance-none"
+            className="w-full bg-subtle-surface dark:bg-zinc-950 border border-border dark:border-zinc-850 pl-10 pr-4 py-2.5 rounded-xl text-xs text-secondary-text dark:text-zinc-300 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all font-semibold cursor-pointer appearance-none"
           >
             <option value="newest">Newest First</option>
             <option value="oldest">Oldest First</option>
@@ -203,7 +203,7 @@ export default function MeetingHistoryPage() {
       {/* History content table */}
       {loading ? (
         // Skeleton lines
-        <div className="glass-panel border border-zinc-200 dark:border-zinc-900 rounded-2xl overflow-hidden p-4 flex flex-col gap-3 animate-pulse bg-white dark:bg-zinc-950/20">
+        <div className="glass-panel border border-border dark:border-zinc-900 rounded-2xl overflow-hidden p-4 flex flex-col gap-3 animate-pulse bg-surface dark:bg-zinc-950/20">
           {[1, 2, 3, 4, 5].map(idx => (
             <div key={idx} className="h-10 bg-zinc-200 dark:bg-zinc-850 rounded-lg w-full" />
           ))}
@@ -213,13 +213,13 @@ export default function MeetingHistoryPage() {
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="glass-panel text-center py-16 px-6 border border-zinc-200/80 dark:border-zinc-900/80 rounded-3xl bg-white dark:bg-zinc-950/20 max-w-xl mx-auto w-full mt-6"
+          className="text-center py-16 px-6 border border-border rounded-3xl bg-surface max-w-xl mx-auto w-full mt-6 shadow-sm"
         >
-          <History className="w-12 h-12 text-zinc-400 dark:text-zinc-650 mx-auto mb-4" />
-          <h3 className="text-base font-extrabold text-zinc-800 dark:text-white uppercase tracking-wider">
+          <History className="w-12 h-12 text-primary mx-auto mb-4" />
+          <h3 className="text-base font-extrabold text-primary-text uppercase tracking-wider">
             No Meeting Records
           </h3>
-          <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-2 max-w-sm mx-auto leading-relaxed">
+          <p className="text-xs text-secondary-text mt-2 max-w-sm mx-auto leading-relaxed font-semibold">
             There are no meeting logs matching your filters. Once you participate in or organize rooms, they will show up here.
           </p>
         </motion.div>
@@ -227,10 +227,10 @@ export default function MeetingHistoryPage() {
         <div className="flex flex-col gap-4">
           
           {/* Refactored Workspace Table View */}
-          <div className="hidden md:block border border-zinc-200/80 dark:border-zinc-900/80 bg-white dark:bg-[#0c0f19]/25 rounded-2xl overflow-hidden shadow-sm">
+          <div className="hidden md:block border border-border bg-surface dark:bg-[#0c0f19]/25 rounded-2xl overflow-hidden shadow-sm">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-zinc-50 dark:bg-[#111827]/40 border-b border-zinc-200 dark:border-zinc-900 text-zinc-400 dark:text-zinc-500 font-black uppercase tracking-widest text-[9px]">
+                <tr className="bg-subtle-surface dark:bg-[#111827]/40 border-b border-divider text-muted-text dark:text-zinc-500 font-black uppercase tracking-widest text-[9px]">
                   <th className="px-5 py-3.5">Meeting</th>
                   <th className="px-5 py-3.5">Participants</th>
                   <th className="px-5 py-3.5">Status</th>
@@ -242,21 +242,21 @@ export default function MeetingHistoryPage() {
                 {meetings.map(m => (
                   <tr 
                     key={m.id} 
-                    className="group border-b border-zinc-200/50 dark:border-zinc-900/50 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 text-zinc-750 dark:text-zinc-300 font-semibold transition-colors"
+                    className="group border-b border-divider hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 text-secondary-text dark:text-zinc-300 font-semibold transition-colors"
                   >
                     <td className="px-5 py-4">
                       <div className="flex flex-col gap-0.5 text-left">
-                        <span className="font-bold text-zinc-800 dark:text-white group-hover:text-indigo-650 dark:group-hover:text-indigo-400 transition-colors">
+                        <span className="font-bold text-primary-text group-hover:text-primary transition-colors">
                           {m.title}
                         </span>
-                        <span className="text-[10px] text-zinc-400 dark:text-zinc-550 font-mono">
+                        <span className="text-[10px] text-muted-text font-mono">
                           ID: {m.id} • Host: @{m.host}
                         </span>
                       </div>
                     </td>
                     
                     <td className="px-5 py-4">
-                      <span className="font-bold text-zinc-800 dark:text-zinc-300">
+                      <span className="font-bold text-primary-text">
                         {m.invitees ? m.invitees.length : 0} invited
                       </span>
                     </td>
@@ -264,19 +264,19 @@ export default function MeetingHistoryPage() {
                     <td className="px-5 py-4">
                       <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
                         m.status === 'ended'
-                          ? 'bg-zinc-150 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400'
+                          ? 'bg-zinc-150 dark:bg-zinc-900 text-[#475569] dark:text-zinc-400'
                           : m.status === 'active'
-                          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                          ? 'bg-[#ECFDF5] border border-[#A7F3D0] text-[#047857] dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400'
                           : m.status === 'cancelled'
-                          ? 'bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400'
-                          : 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400'
+                          ? 'bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-455'
+                          : 'bg-[#EEEBFF] border border-[#EEEBFF] text-[#5B4BDB] dark:bg-indigo-500/10 dark:border-indigo-500/20 dark:text-indigo-450'
                       }`}>
                         {m.status === 'active' ? 'Live' : m.status}
                       </span>
                     </td>
                     
                     <td className="px-5 py-4">
-                      <span className="text-zinc-700 dark:text-zinc-400 font-bold">
+                      <span className="text-secondary-text font-bold">
                         {getFriendlyDate(m.scheduledAt || m.createdAt)}
                       </span>
                     </td>
@@ -286,7 +286,7 @@ export default function MeetingHistoryPage() {
                         {m.status === 'active' ? (
                           <Link
                             href={`/meetings/${m.id}`}
-                            className="px-3.5 py-1.5 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-[10px] font-extrabold flex items-center gap-0.5 shadow transition-all active:scale-95 cursor-pointer"
+                            className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-white rounded-lg text-[10px] font-extrabold flex items-center gap-0.5 shadow transition-all active:scale-95 cursor-pointer border-0"
                           >
                             <span>Join</span>
                             <ArrowRight className="w-3 h-3" />
@@ -294,7 +294,7 @@ export default function MeetingHistoryPage() {
                         ) : m.status === 'scheduled' ? (
                           <Link
                             href={`/meetings/${m.id}`}
-                            className="px-3.5 py-1.5 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 rounded-lg text-[10px] font-extrabold flex items-center gap-0.5 border border-zinc-200 dark:border-zinc-800 transition-all hover:bg-zinc-100 dark:hover:bg-zinc-850 cursor-pointer"
+                            className="px-3.5 py-1.5 bg-subtle-surface dark:bg-zinc-900 text-secondary-text dark:text-zinc-300 rounded-lg text-[10px] font-extrabold flex items-center gap-0.5 border border-border dark:border-zinc-800 transition-all hover:bg-sec-surface dark:hover:bg-zinc-850 cursor-pointer"
                           >
                             <span>View</span>
                             <ArrowRight className="w-3 h-3" />
@@ -302,7 +302,7 @@ export default function MeetingHistoryPage() {
                         ) : (
                           <button
                             onClick={() => setSelectedMeeting(m)}
-                            className="px-3.5 py-1.5 bg-zinc-50 dark:bg-zinc-900 text-zinc-650 dark:text-zinc-400 rounded-lg text-[10px] font-extrabold transition-all border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-850 cursor-pointer"
+                            className="px-3.5 py-1.5 bg-subtle-surface dark:bg-zinc-900 text-secondary-text dark:text-zinc-405 rounded-lg text-[10px] font-extrabold transition-all border border-border dark:border-zinc-800 hover:bg-sec-surface dark:hover:bg-zinc-850 cursor-pointer"
                           >
                             Details
                           </button>

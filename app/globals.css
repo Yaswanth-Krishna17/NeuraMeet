@@ -10,7 +10,7 @@
 
 
 :root {
-  --background: #F5F7FB;
+  --background: #F6F7FB;
   --foreground: #111827;
   
   --card: #FFFFFF;
@@ -22,13 +22,13 @@
   --primary: #5B4BDB;
   --primary-foreground: #FFFFFF;
   
-  --secondary: #E2E6EF;
-  --secondary-foreground: #64748B;
+  --secondary: #F1F3F8;
+  --secondary-foreground: #475569;
   
-  --muted: #E2E6EF;
+  --muted: #F8F9FC;
   --muted-foreground: #94A3B8;
   
-  --accent: #E2E6EF;
+  --accent: #F1F3F8;
   --accent-foreground: #111827;
   
   --destructive: #E11D48;
@@ -44,13 +44,23 @@
   --surface: #FFFFFF;
   --surface-elevated: #FFFFFF;
   --text-primary: #111827;
-  --text-secondary: #64748B;
+  --text-secondary: #475569;
   --text-muted: #94A3B8;
   --primary-hover: #4F40C9;
   --cyan: #0891B2;
   --success: #059669;
   --warning: #D97706;
   --danger: #E11D48;
+
+  /* Additional Light Theme Semantic colors */
+  --soft-primary: #EEEBFF;
+  --divider: #E8EBF2;
+  --secondary-surface: #F1F3F8;
+  --subtle-surface: #F8F9FC;
+
+  /* Theme-specific shadows */
+  --box-shadow-sm: 0 4px 18px rgba(15, 23, 42, 0.05);
+  --box-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.06);
 
   /* Tailwind Color Inversions for light mode fallback */
   --color-white: #09090B;
@@ -122,6 +132,16 @@
   --success: #22C55E;
   --warning: #F59E0B;
   --danger: #F43F5E;
+
+  /* Additional Dark Theme Semantic colors */
+  --soft-primary: #1F193B;
+  --divider: #252B38;
+  --secondary-surface: #252B38;
+  --subtle-surface: #151925;
+
+  /* Theme-specific shadows */
+  --box-shadow-sm: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --box-shadow-md: 0 8px 30px rgba(0, 0, 0, 0.5);
 
   /* Dark theme colors */
   --color-white: #FFFFFF;
@@ -205,6 +225,16 @@
   --color-success-custom: var(--success);
   --color-warning-custom: var(--warning);
   --color-danger-custom: var(--danger);
+
+  /* Additional Light Theme Semantic variables */
+  --color-soft-primary: var(--soft-primary);
+  --color-divider: var(--divider);
+  --color-sec-surface: var(--secondary-surface);
+  --color-subtle-surface: var(--subtle-surface);
+
+  /* Theme-specific shadows */
+  --shadow-sm: var(--box-shadow-sm);
+  --shadow-md: var(--box-shadow-md);
 }
 
 body {
