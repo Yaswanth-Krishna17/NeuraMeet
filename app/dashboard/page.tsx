@@ -141,6 +141,7 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loadingMeetings, setLoadingMeetings] = useState(true);
+  const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
 
   // Active Tab Switcher for Recent Sidebar
   const [activeSidebarTab, setActiveSidebarTab] = useState<'invitations' | 'hosted'>('invitations');
@@ -413,30 +414,43 @@ export default function DashboardPage() {
     };
   }, [profile]);
 
-  // 4. Add username validation to invite list
+  // 4. Add username validation to invite list (supports multiple comma-separated usernames)
   const handleAddInvitee = async (e: React.FormEvent) => {
     e.preventDefault();
     setInviteeError('');
-    const invitee = inviteeInput.trim().toLowerCase();
+    
+    const rawInput = inviteeInput;
+    if (!rawInput.trim()) return;
 
-    if (!invitee) return;
-    if (profile && invitee === profile.username.toLowerCase()) {
-      setInviteeError('You cannot invite yourself.');
-      return;
-    }
-    if (inviteesList.includes(invitee)) {
-      setInviteeError('User already in invite list.');
-      return;
+    const parts = rawInput.split(',').map(p => p.trim().toLowerCase()).filter(Boolean);
+    const addedUsernames: string[] = [];
+    const failedUsernames: string[] = [];
+
+    for (const invitee of parts) {
+      if (profile && invitee === profile.username.toLowerCase()) {
+        continue;
+      }
+      if (inviteesList.includes(invitee) || addedUsernames.includes(invitee)) {
+        continue;
+      }
+
+      const check = await checkUsernameExistsAction(invitee);
+      if (check.exists && check.username) {
+        addedUsernames.push(check.username);
+      } else {
+        failedUsernames.push(invitee);
+      }
     }
 
-    const check = await checkUsernameExistsAction(invitee);
-    if (check.exists && check.username) {
-      setInviteesList((prev) => [...prev, check.username!]);
+    if (addedUsernames.length > 0) {
+      setInviteesList((prev) => [...prev, ...addedUsernames]);
       setInviteeInput('');
       setSuggestions([]);
       setShowSuggestionsDropdown(false);
-    } else {
-      setInviteeError(`Username @${invitee} does not exist on this platform.`);
+    }
+
+    if (failedUsernames.length > 0) {
+      setInviteeError(`Colleagues do not exist: ${failedUsernames.map(u => `@${u}`).join(', ')}`);
     }
   };
 
@@ -611,341 +625,566 @@ export default function DashboardPage() {
   const filteredInvitations = incomingInvitations.filter((m) =>
     m.title.toLowerCase().includes(meetingsSearchQuery.toLowerCase()) ||
     m.id.toLowerCase().includes(meetingsSearchQuery.toLowerCase())
+  )  // Construct recent activity events dynamically from meetings
+  const getRecentActivity = () => {
+    const activity: { id: string; type: string; title: string; time: string; timestamp: number }[] = [];
+    meetings.forEach(m => {
+      const isHost = m.host.toLowerCase() === profile.username.toLowerCase();
+      if (isHost) {
+        activity.push({
+          id: `${m.id}-create`,
+          type: 'create',
+          title: `You created "${m.title}"`,
+          time: getRelativeTime(m.createdAt),
+          timestamp: new Date(m.createdAt).getTime()
+        });
+      } else {
+        activity.push({
+          id: `${m.id}-invite`,
+          type: 'invite',
+          title: `@${m.host} invited you to "${m.title}"`,
+          time: getRelativeTime(m.createdAt),
+          timestamp: new Date(m.createdAt).getTime()
+        });
+      }
+      if (m.status === 'ended') {
+        activity.push({
+          id: `${m.id}-end`,
+          type: 'end',
+          title: `"${m.title}" ended`,
+          time: 'Previously',
+          timestamp: new Date(m.createdAt).getTime() - 3600000
+        });
+      }
+    });
+    return activity.sort((a, b) => b.timestamp - a.timestamp).slice(0, 4);
+  };
+  
+  const recentActivities = getRecentActivity();
+
+  // Filter Today's Meetings
+  const isDateToday = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    const today = new Date();
+    return d.getDate() === today.getDate() &&
+           d.getMonth() === today.getMonth() &&
+           d.getFullYear() === today.getFullYear();
+  };
+
+  const todayMeetings = meetings.filter(m => m.status === 'active' || isDateToday(m.scheduledAt || m.createdAt));
+  const sortedTodayMeetings = [...todayMeetings].sort((a, b) => {
+    if (a.status === 'active') return -1;
+    if (b.status === 'active') return 1;
+    return new Date(a.scheduledAt || a.createdAt).getTime() - new Date(b.scheduledAt || b.createdAt).getTime();
+  });
+  const nextMeetingToday = sortedTodayMeetings[0] || null;
+
+  // Upcoming meetings are future scheduled sessions NOT today
+  const upcomingMeetings = meetings.filter(m => 
+    m.status === 'scheduled' && 
+    !isDateToday(m.scheduledAt) && 
+    new Date(m.scheduledAt || m.createdAt).getTime() > Date.now()
   );
 
   return (
-    <div className="flex flex-col gap-8 max-w-7xl mx-auto w-full px-1">
+    <div className="flex flex-col gap-8 max-w-7xl mx-auto w-full px-1 text-left select-none relative">
       
-      {/* Redesigned Premium Welcome Header */}
-      <div className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-8 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden group text-left">
-        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-cyan-400/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-        
-        <div className="flex items-center gap-5 z-10 w-full md:w-auto">
-          {/* Glowing spinning avatar frame */}
-          <div className="relative p-1 shrink-0">
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-400 animate-spin [animation-duration:8s] opacity-75 blur-[1px] shadow-lg shadow-indigo-500/10" />
-            <img 
-              src={profile.profileImage || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.fullName}`} 
-              alt={profile.fullName} 
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border border-zinc-950 dark:border-zinc-950 light:border-zinc-300 object-cover shadow-md relative z-10 bg-zinc-900"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${profile.fullName}`;
-              }}
-            />
-          </div>
-
-          <div className="flex flex-col text-left">
-            <span className="text-[9px] font-extrabold text-indigo-500 dark:text-indigo-400 light:text-indigo-650 uppercase tracking-widest flex items-center gap-1">
-              <Lock className="w-3 h-3" />
-              <span>Linkless Secure Session Verified</span>
-            </span>
-            <h2 className="text-xl font-extrabold text-white dark:text-white light:text-zinc-900 flex items-center gap-2 mt-1">
-              {getGreeting(profile.fullName)}
-            </h2>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-zinc-400 dark:text-zinc-400 light:text-zinc-550 font-medium">
-              <span>Secure, linkless conference portal</span>
-              <span className="hidden sm:inline text-zinc-800 dark:text-zinc-800 light:text-zinc-300">•</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider font-mono">
-                verified Username: <span className="text-cyan-500 dark:text-cyan-400 light:text-cyan-600">@{profile.username}</span>
-              </span>
-            </div>
-          </div>
+      {/* Redesigned Simplified Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-900/80 pb-6">
+        <div>
+          <span className="text-[10px] font-extrabold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest flex items-center gap-1.5 font-mono">
+            <Lock className="w-3.5 h-3.5" />
+            <span>Linkless Secure Session Whitelist</span>
+          </span>
+          <h2 className="text-2xl font-black text-zinc-900 dark:text-white mt-1 leading-tight">
+            {getGreeting(profile.fullName)}
+          </h2>
+          <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1 font-semibold">
+            {todayMeetings.length > 0 
+              ? `You have ${todayMeetings.length} meeting${todayMeetings.length === 1 ? '' : 's'} scheduled for today.`
+              : 'No meetings scheduled today.'}
+          </p>
         </div>
 
-        <div className="flex gap-4 z-10 w-full md:w-auto justify-end">
+        <div className="flex items-center gap-3">
           <button 
             onClick={fetchMeetings} 
-            className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-zinc-900 dark:bg-zinc-900 light:bg-zinc-100 border border-zinc-800 dark:border-zinc-850 light:border-zinc-200 text-zinc-300 dark:text-zinc-300 light:text-zinc-700 font-bold text-xs hover:bg-zinc-850 dark:hover:bg-zinc-850 light:hover:bg-zinc-200 hover:text-white dark:hover:text-white light:hover:text-zinc-900 transition-all flex items-center justify-center gap-2 cursor-pointer shadow active:scale-[0.98]"
+            className="px-4 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 font-bold text-xs hover:bg-zinc-200 dark:hover:bg-[#18181b] hover:text-zinc-900 dark:hover:text-white transition-all flex items-center gap-2 cursor-pointer shadow active:scale-[0.98]"
             title="Refresh database and sync sockets"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-indigo-400 dark:text-indigo-400 light:text-indigo-650" />
-            <span>Sync Live Status</span>
+            <RefreshCw className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 animate-spin-hover" />
+            <span>Sync</span>
+          </button>
+          
+          <button
+            onClick={() => setIsCreateDrawerOpen(true)}
+            className="px-5 py-2.5 rounded-xl bg-indigo-655 hover:bg-indigo-600 text-white font-extrabold text-xs shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Meeting</span>
           </button>
         </div>
       </div>
 
-      {/* Philosophy Security Banner */}
-      <div className="bg-indigo-950/15 dark:bg-indigo-950/10 light:bg-indigo-50 border border-indigo-500/20 light:border-indigo-200 p-4.5 rounded-2xl flex flex-col sm:flex-row items-center gap-4 text-left shadow-inner">
-        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 dark:text-indigo-455 light:text-indigo-600 shrink-0">
-          <ShieldCheck className="w-5.5 h-5.5" />
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <h4 className="text-xs font-black text-white dark:text-white light:text-zinc-850 flex items-center gap-1.5">
-            <span>Identity-Authorized Meetings</span>
-            <span className="text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 px-2 py-0.25 rounded-md">ZERO LINKS</span>
-          </h4>
-          <p className="text-[11px] text-zinc-400 dark:text-zinc-450 light:text-zinc-550 leading-relaxed font-medium">
-            This platform generates <strong className="text-white dark:text-white light:text-zinc-800">no links, invite codes, or URLs</strong>. Access is restricted exclusively to authenticated users on the invite list. Meeting IDs are purely internal log tags.
-          </p>
-        </div>
-      </div>
-
-      {/* Redesigned Quick Actions Panel */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        {/* Start Instant Meeting Card */}
-        <button
-          onClick={handleQuickInstant}
-          className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-6 rounded-3xl flex items-center gap-5 shadow-lg hover:-translate-y-1.5 hover:border-indigo-500/40 dark:hover:border-indigo-500/40 light:hover:border-indigo-300 transition-all duration-300 text-left cursor-pointer group"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500 dark:text-indigo-400 light:text-indigo-600 shadow-inner group-hover:scale-110 transition-transform">
-            <Zap className="w-5.5 h-5.5" />
-          </div>
-          <div className="flex flex-col">
-            <h4 className="text-sm font-black text-white dark:text-white light:text-zinc-855 group-hover:text-indigo-400 transition-colors">Start Instant Meeting</h4>
-            <p className="text-[11px] text-zinc-450 dark:text-zinc-400 light:text-zinc-550 mt-0.5 leading-relaxed">Start an immediate room binding.</p>
-          </div>
-        </button>
-
-        {/* Schedule Secure Meeting Card */}
-        <button
-          onClick={handleQuickSchedule}
-          className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-6 rounded-3xl flex items-center gap-5 shadow-lg hover:-translate-y-1.5 hover:border-indigo-500/40 dark:hover:border-indigo-500/40 light:hover:border-indigo-300 transition-all duration-300 text-left cursor-pointer group"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-500 dark:text-cyan-400 light:text-cyan-600 shadow-inner group-hover:scale-110 transition-transform">
-            <Calendar className="w-5.5 h-5.5" />
-          </div>
-          <div className="flex flex-col">
-            <h4 className="text-sm font-black text-white dark:text-white light:text-zinc-855 group-hover:text-cyan-400 transition-colors">Schedule Secure Meeting</h4>
-            <p className="text-[11px] text-zinc-450 dark:text-zinc-400 light:text-zinc-550 mt-0.5 leading-relaxed">Setup future timezone rooms.</p>
-          </div>
-        </button>
-
-        {/* Join by Invitations Card */}
-        <button
-          onClick={handleQuickInvitationsTab}
-          className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-6 rounded-3xl flex items-center gap-5 shadow-lg hover:-translate-y-1.5 hover:border-indigo-500/40 dark:hover:border-indigo-500/40 light:hover:border-indigo-300 transition-all duration-300 text-left cursor-pointer group"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 dark:text-emerald-450 light:text-emerald-650 shadow-inner group-hover:scale-110 transition-transform relative">
-            <Inbox className="w-5.5 h-5.5" />
-            {incomingInvitations.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 border border-zinc-950 dark:border-zinc-950 light:border-white rounded-full flex items-center justify-center text-[8px] text-white font-extrabold animate-pulse">
-                {incomingInvitations.length}
-              </span>
-            )}
-          </div>
-          <div className="flex flex-col">
-            <h4 className="text-sm font-black text-white dark:text-white light:text-zinc-855 group-hover:text-emerald-400 transition-colors">Invitations</h4>
-            <p className="text-[11px] text-zinc-450 dark:text-zinc-400 light:text-zinc-550 mt-0.5 leading-relaxed">View pending secure calls.</p>
-          </div>
-        </button>
-      </div>
-
-      {/* Redesigned Statistics Section */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Meetings */}
-        <div className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-6 rounded-3xl flex items-center justify-between shadow-lg hover:-translate-y-1.5 hover:border-zinc-800 dark:hover:border-zinc-800 light:hover:border-zinc-300 hover:shadow-indigo-500/5 transition-all duration-300 group">
-          <div className="flex flex-col gap-1 text-left">
-            <span className="text-[9px] text-zinc-500 dark:text-zinc-500 light:text-zinc-400 uppercase font-bold tracking-widest">Total Meetings</span>
-            <span className="text-2xl sm:text-3xl font-black text-white dark:text-white light:text-zinc-900">
-              <AnimatedCounter value={totalMeetings} />
-            </span>
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-400 light:text-zinc-550 mt-1 font-semibold">Sessions recorded</span>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-zinc-900/60 dark:bg-zinc-900/60 light:bg-zinc-100 border border-zinc-850 dark:border-zinc-850 light:border-zinc-200 flex items-center justify-center text-indigo-500 dark:text-indigo-400 light:text-indigo-650 shadow-inner group-hover:scale-110 group-hover:shadow-indigo-500/20 transition-all">
-            <Calendar className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Live Meetings */}
-        <div className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-6 rounded-3xl flex items-center justify-between shadow-lg hover:-translate-y-1.5 hover:border-zinc-800 dark:hover:border-zinc-800 light:hover:border-zinc-300 hover:shadow-emerald-500/5 transition-all duration-300 group">
-          <div className="flex flex-col gap-1 text-left">
-            <span className="text-[9px] text-zinc-500 dark:text-zinc-500 light:text-zinc-400 uppercase font-bold tracking-widest">Live Sessions</span>
-            <span className="text-2xl sm:text-3xl font-black text-white dark:text-white light:text-zinc-900">
-              <AnimatedCounter value={liveMeetings} />
-            </span>
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-400 light:text-zinc-550 mt-1 font-semibold">Active voice channels</span>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-zinc-900/60 dark:bg-zinc-900/60 light:bg-zinc-100 border border-zinc-850 dark:border-zinc-850 light:border-zinc-200 flex items-center justify-center text-emerald-500 dark:text-emerald-450 light:text-emerald-600 shadow-inner group-hover:scale-110 group-hover:shadow-emerald-500/20 transition-all">
-            <Video className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Participants */}
-        <div className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-6 rounded-3xl flex items-center justify-between shadow-lg hover:-translate-y-1.5 hover:border-zinc-800 dark:hover:border-zinc-800 light:hover:border-zinc-300 hover:shadow-cyan-500/5 transition-all duration-300 group">
-          <div className="flex flex-col gap-1 text-left">
-            <span className="text-[9px] text-zinc-500 dark:text-zinc-500 light:text-zinc-400 uppercase font-bold tracking-widest">Participants</span>
-            <span className="text-2xl sm:text-3xl font-black text-white dark:text-white light:text-zinc-900">
-              <AnimatedCounter value={totalParticipants} />
-            </span>
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-400 light:text-zinc-550 mt-1 font-semibold">Invited members</span>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-zinc-900/60 dark:bg-zinc-900/60 light:bg-zinc-100 border border-zinc-850 dark:border-zinc-850 light:border-zinc-200 flex items-center justify-center text-cyan-500 dark:text-cyan-400 light:text-cyan-600 shadow-inner group-hover:scale-110 group-hover:shadow-cyan-500/20 transition-all">
-            <Users className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Platform Security */}
-        <div className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-6 rounded-3xl flex items-center justify-between shadow-lg hover:-translate-y-1.5 hover:border-zinc-800 dark:hover:border-zinc-800 light:hover:border-zinc-300 hover:shadow-rose-500/5 transition-all duration-300 group">
-          <div className="flex flex-col gap-1 text-left">
-            <span className="text-[9px] text-zinc-500 dark:text-zinc-500 light:text-zinc-400 uppercase font-bold tracking-widest">Security Status</span>
-            <span className="text-lg font-black text-emerald-500 dark:text-emerald-450 light:text-emerald-600 uppercase tracking-wide mt-1.5 flex items-center gap-1">
-              <Shield className="w-4 h-4 shrink-0" />
-              <span>Linkless Active</span>
-            </span>
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-400 light:text-zinc-555 mt-1 font-semibold">Binding protection</span>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-zinc-900/60 dark:bg-zinc-900/60 light:bg-zinc-100 border border-zinc-850 dark:border-zinc-850 light:border-zinc-200 flex items-center justify-center text-rose-500 dark:text-rose-455 light:text-rose-600 shadow-inner group-hover:scale-110 group-hover:shadow-rose-500/20 transition-all">
-            <Lock className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Grid Content (Primary action Left, Sidebar list Right) */}
+      {/* Main Workspace split columns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         
-        {/* Left Column: Create & Schedule Meeting Form (lg:col-span-2) */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          <div className="text-left">
-            <h3 className="text-lg font-bold text-white dark:text-white light:text-zinc-850 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-indigo-500 dark:text-indigo-400 light:text-indigo-650" />
-              <span>Create or Schedule Secure Meeting</span>
+        {/* Left Column: Today & Upcoming schedule */}
+        <div className="lg:col-span-2 flex flex-col gap-8">
+          
+          {/* TODAY Priority section */}
+          <div className="flex flex-col gap-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-555">
+              Today
             </h3>
-            <p className="text-xs text-zinc-400 dark:text-zinc-400 light:text-zinc-550 mt-1 leading-relaxed">
-              Define meeting parameters. Since NeuraMeet utilizes linkless security, users join via their unique username bindings and real-time socket signals.
-            </p>
+
+            {nextMeetingToday ? (
+              <div className="relative group overflow-hidden rounded-2xl border border-indigo-500/20 dark:border-indigo-500/35 bg-white dark:bg-[#0c0f19]/40 p-6 shadow-xl shadow-indigo-500/5 transition-all">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                        Next Session
+                      </span>
+                      
+                      {nextMeetingToday.status === 'active' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-455 text-[9.5px] font-black uppercase tracking-wider animate-pulse">
+                          <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
+                          Live Now
+                        </span>
+                      )}
+                      
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-400 dark:text-zinc-550 font-mono">
+                        ID: {nextMeetingToday.id}
+                      </span>
+                    </div>
+                    
+                    <h4 className="text-lg font-black text-zinc-900 dark:text-white mt-2 truncate">
+                      {nextMeetingToday.title}
+                    </h4>
+                    
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 text-xs text-zinc-550 dark:text-zinc-400 font-semibold">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-indigo-500" />
+                        <span>
+                          {nextMeetingToday.scheduledAt 
+                            ? formatScheduledTime(nextMeetingToday.scheduledAt) 
+                            : 'Instant Session'}
+                        </span>
+                      </span>
+                      
+                      <span>•</span>
+                      
+                      <span className="flex items-center gap-1.5">
+                        <Users className="w-4 h-4 text-cyan-500" />
+                        <span>
+                          {nextMeetingToday.invitees.length} Invited
+                        </span>
+                      </span>
+                      
+                      <span>•</span>
+                      
+                      <span className="text-indigo-650 dark:text-indigo-400 font-extrabold uppercase tracking-wide flex items-center gap-1">
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Linkless Secure</span>
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="shrink-0">
+                    <Link
+                      href={`/meetings/${nextMeetingToday.id}`}
+                      className="px-6 py-3 rounded-xl bg-indigo-650 hover:bg-indigo-600 text-white font-extrabold text-xs shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Join Meeting</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-dashed border-zinc-250 dark:border-zinc-850 rounded-2xl p-8 text-center bg-white/20 dark:bg-zinc-950/5 flex flex-col items-center justify-center gap-4">
+                <Calendar className="w-8 h-8 text-zinc-450 dark:text-zinc-650" />
+                <div>
+                  <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">No meetings scheduled today</p>
+                  <p className="text-[11px] text-zinc-450 dark:text-zinc-500 mt-0.5">Use the new meeting drawer to register a session.</p>
+                </div>
+                <button
+                  onClick={() => setIsCreateDrawerOpen(true)}
+                  className="px-4 py-2 bg-indigo-655 hover:bg-indigo-600 text-white rounded-xl text-[11px] font-extrabold shadow transition-all cursor-pointer"
+                >
+                  Create Meeting
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="bg-zinc-950/60 dark:bg-[#09090b] light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-8 rounded-3xl shadow-xl flex flex-col gap-6 text-left">
-            <form onSubmit={handleCreateMeeting} className="flex flex-col gap-6">
-              
-              {/* Section 1: Title Input with leading icon */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-extrabold text-zinc-400 dark:text-zinc-400 light:text-zinc-650 uppercase tracking-widest">Step 1: Meeting Title</label>
-                <div className="relative flex items-center">
-                  <Video className="w-4 h-4 text-zinc-500 absolute left-3 pointer-events-none" />
-                  <input 
-                    ref={titleInputRef}
-                    type="text" 
-                    value={meetingTitle}
-                    onChange={(e) => setMeetingTitle(e.target.value)}
-                    placeholder="Enter a descriptive title (e.g. Frontend Design Review)" 
-                    className="w-full pl-10 pr-4 py-3 bg-white dark:bg-[#18181B] border border-zinc-300 dark:border-zinc-800 text-xs rounded-xl text-zinc-950 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                    required
-                  />
-                </div>
+          {/* UPCOMING schedule section */}
+          <div className="flex flex-col gap-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-555">
+              Upcoming
+            </h3>
+            
+            {upcomingMeetings.length === 0 ? (
+              <div className="border border-zinc-200/50 dark:border-zinc-900/50 rounded-2xl p-6 text-center text-xs text-zinc-500 dark:text-zinc-600">
+                No future scheduled meetings.
               </div>
-
-              {/* Section 2: Meeting Type Selector Cards */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-extrabold text-zinc-400 dark:text-zinc-400 light:text-zinc-650 uppercase tracking-widest">Step 2: Meeting Type</label>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Instant Meeting Card */}
+            ) : (
+              <div className="flex flex-col border border-zinc-200/80 dark:border-zinc-900/80 rounded-2xl bg-white dark:bg-[#0c0f19]/20 divide-y divide-zinc-200/60 dark:divide-zinc-900/60 overflow-hidden shadow-sm">
+                {upcomingMeetings.map((meeting) => (
                   <div 
-                    onClick={() => {
-                      setIsFutureScheduled(false);
-                      setSchedulingError('');
-                    }}
-                    className={`p-5 rounded-2xl border text-left cursor-pointer transition-all duration-300 flex flex-col gap-3 group relative overflow-hidden select-none ${
-                      !isFutureScheduled 
-                        ? 'bg-indigo-950/15 dark:bg-indigo-950/15 light:bg-indigo-50/50 border-indigo-500/80 dark:border-indigo-500/80 light:border-indigo-400 shadow-lg shadow-indigo-500/5'
-                        : 'bg-white dark:bg-[#18181B] border-zinc-200 dark:border-zinc-800 hover:border-zinc-350 dark:hover:border-zinc-700 hover:shadow-md'
-                    }`}
+                    key={meeting.id} 
+                    className="group p-4 flex items-center justify-between gap-4 hover:bg-zinc-50 dark:hover:bg-[#111827]/40 transition-colors"
                   >
-                    <div className="flex justify-between items-start">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all ${
-                        !isFutureScheduled
-                          ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-500/25'
-                          : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-550 dark:text-zinc-400 group-hover:scale-105'
-                      }`}>
-                        <Zap className="w-5 h-5" />
-                      </div>
-                      {!isFutureScheduled && (
-                        <div className="w-5 h-5 rounded-full bg-indigo-600 border border-indigo-500 flex items-center justify-center text-white shadow shadow-indigo-500/10">
-                          <Check className="w-3.5 h-3.5" />
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <h4 className={`text-sm font-extrabold transition-colors ${
-                        !isFutureScheduled
-                          ? 'text-indigo-600 dark:text-indigo-400 light:text-indigo-800'
-                          : 'text-zinc-800 dark:text-zinc-100'
-                      }`}>Instant Meeting</h4>
-                      <p className="text-[11px] text-zinc-450 dark:text-zinc-455 light:text-zinc-550 mt-1 leading-relaxed">Start immediately. Ideal for ad-hoc troubleshooting calls.</p>
-                    </div>
-                  </div>
-
-                  {/* Scheduled Meeting Card */}
-                  <div 
-                    onClick={() => {
-                      setIsFutureScheduled(true);
-                      setSchedulingError('');
-                    }}
-                    className={`p-5 rounded-2xl border text-left cursor-pointer transition-all duration-300 flex flex-col gap-3 group relative overflow-hidden select-none ${
-                      isFutureScheduled 
-                        ? 'bg-indigo-950/15 dark:bg-indigo-950/15 light:bg-indigo-50/50 border-indigo-500/80 dark:border-indigo-500/80 light:border-indigo-400 shadow-lg shadow-indigo-500/5'
-                        : 'bg-white dark:bg-[#18181B] border-zinc-200 dark:border-zinc-800 hover:border-zinc-350 dark:hover:border-zinc-700 hover:shadow-md'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all ${
-                        isFutureScheduled
-                          ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-500/25'
-                          : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-550 dark:text-zinc-400 group-hover:scale-105'
-                      }`}>
-                        <Calendar className="w-5 h-5" />
-                      </div>
-                      {isFutureScheduled && (
-                        <div className="w-5 h-5 rounded-full bg-indigo-600 border border-indigo-500 flex items-center justify-center text-white shadow shadow-indigo-500/10">
-                          <Check className="w-3.5 h-3.5" />
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <h4 className={`text-sm font-extrabold transition-colors ${
-                        isFutureScheduled
-                          ? 'text-indigo-600 dark:text-indigo-400 light:text-indigo-800'
-                          : 'text-zinc-800 dark:text-zinc-100'
-                      }`}>Schedule Meeting</h4>
-                      <p className="text-[11px] text-zinc-450 dark:text-zinc-455 light:text-zinc-550 mt-1 leading-relaxed">Choose date and timezone offset. Ideal for calendar planning.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 2.5: Scheduling Date & Time Selectors */}
-              <AnimatePresence>
-                {isFutureScheduled && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="flex flex-col gap-4 overflow-hidden border-t border-zinc-200 dark:border-zinc-900 light:border-zinc-150 pt-5 mt-1"
-                  >
-                    <label className="text-[10px] font-extrabold text-zinc-450 dark:text-zinc-400 light:text-zinc-650 uppercase tracking-widest">Time & Date Parameters</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                      <div className="flex flex-col gap-1.5 text-left col-span-1">
-                        <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Date</label>
-                        <input
-                          type="date"
-                          value={scheduledDate}
-                          onChange={(e) => setScheduledDate(e.target.value)}
-                          className="w-full px-3 py-2 bg-white dark:bg-[#18181B] border border-zinc-300 dark:border-zinc-850 text-xs rounded-lg text-zinc-950 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors font-medium"
-                          required={isFutureScheduled}
-                        />
+                    <div className="flex-grow min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-zinc-800 dark:text-white truncate">
+                          {meeting.title}
+                        </h4>
+                        <span className="text-[9px] font-mono text-zinc-400 dark:text-zinc-550 opacity-0 group-hover:opacity-100 transition-opacity">
+                          ID: {meeting.id}
+                        </span>
                       </div>
                       
-                      <div className="flex flex-col gap-1.5 text-left col-span-1">
-                        <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Time</label>
-                        <input
-                          type="time"
-                          value={scheduledTime}
-                          onChange={(e) => setScheduledTime(e.target.value)}
-                          className="w-full px-3 py-2 bg-white dark:bg-[#18181B] border border-zinc-300 dark:border-zinc-850 text-xs rounded-lg text-zinc-950 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors font-medium"
-                          required={isFutureScheduled}
-                        />
+                      <div className="flex items-center gap-3 mt-1 text-[11px] text-zinc-500 dark:text-zinc-500">
+                        <span>{meeting.scheduledAt ? formatScheduledTime(meeting.scheduledAt) : ''}</span>
+                        <span>•</span>
+                        <span>{meeting.invitees.length} participant{meeting.invitees.length === 1 ? '' : 's'}</span>
+                        <span>•</span>
+                        <span className="text-indigo-650 dark:text-indigo-400 font-extrabold uppercase tracking-wider text-[9px] flex items-center gap-0.5">
+                          <Lock className="w-2.5 h-2.5" />
+                          Linkless
+                        </span>
                       </div>
+                    </div>
+                    
+                    <div className="shrink-0 flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          if (activeAddMemberId === meeting.id) {
+                            setActiveAddMemberId(null);
+                          } else {
+                            setActiveAddMemberId(meeting.id);
+                            setAddMemberInput('');
+                            setAddMemberError('');
+                            setAddMemberSuccess('');
+                          }
+                        }}
+                        className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer transition-colors"
+                        title="Add members by username"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" />
+                      </button>
 
-                      <div className="flex flex-col gap-1.5 text-left col-span-2 sm:col-span-1">
-                        <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1">
-                          <Globe className="w-3 h-3 text-indigo-400" />
-                          <span>Timezone</span>
-                        </label>
+                      <Link 
+                        href={`/meetings/${meeting.id}`}
+                        className="px-3.5 py-1.5 bg-zinc-50 dark:bg-zinc-900 hover:bg-indigo-650 hover:text-white dark:hover:bg-indigo-650 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 font-extrabold text-[10px] rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>Join</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+
+                      <button
+                        onClick={() => handleDeleteMeeting(meeting.id)}
+                        className="p-2 border border-zinc-200 dark:border-zinc-800 hover:bg-rose-500/10 hover:text-rose-500 rounded-lg transition-colors text-zinc-400 cursor-pointer"
+                        title="Remove Meeting"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Inline Add User form for active row */}
+            {activeAddMemberId && (
+              <form 
+                onSubmit={(e) => handleAddMemberToMeeting(e, activeAddMemberId)} 
+                className="flex flex-col gap-2 p-4 bg-white dark:bg-[#0c0f19]/60 border border-zinc-200 dark:border-zinc-900 rounded-2xl mt-2 animate-slide-in max-w-md shadow-lg"
+              >
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={addMemberInput}
+                    onChange={(e) => setAddMemberInput(e.target.value)}
+                    placeholder="Username to add..."
+                    className="flex-grow px-3 py-1.5 bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-800 text-xs rounded-xl text-zinc-950 dark:text-zinc-100 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={addingMemberId === activeAddMemberId}
+                    className="px-4 py-1.5 bg-indigo-650 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {addingMemberId === activeAddMemberId ? 'Adding...' : 'Add'}
+                  </button>
+                </div>
+                {addMemberError && <span className="text-[10px] text-rose-500 font-semibold">⚠ {addMemberError}</span>}
+                {addMemberSuccess && <span className="text-[10px] text-emerald-500 font-semibold">✓ {addMemberSuccess}</span>}
+              </form>
+            )}
+          </div>
+
+        </div>
+
+        {/* Right Column: Timeline and Statistics */}
+        <div className="lg:col-span-1 flex flex-col gap-8">
+          
+          {/* RECENT ACTIVITY Timeline */}
+          <div className="flex flex-col gap-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-555">
+              Recent Activity
+            </h3>
+            
+            {recentActivities.length === 0 ? (
+              <div className="border border-zinc-200/50 dark:border-zinc-900/50 rounded-2xl p-6 text-center text-xs text-zinc-550">
+                No recent activity recorded.
+              </div>
+            ) : (
+              <div className="relative pl-5 flex flex-col gap-6 before:absolute before:left-[4px] before:top-2 before:bottom-2 before:w-[1.5px] before:bg-zinc-200 dark:before:bg-zinc-850">
+                {recentActivities.map((act) => (
+                  <div key={act.id} className="relative flex flex-col gap-1 text-xs">
+                    <span className={`absolute -left-[21px] top-1.5 w-2 h-2 rounded-full border border-white dark:border-[#09090b] ${
+                      act.type === 'create' 
+                        ? 'bg-indigo-500' 
+                        : act.type === 'invite' 
+                        ? 'bg-cyan-400' 
+                        : 'bg-zinc-400'
+                    }`} />
+                    
+                    <span className="font-bold text-zinc-800 dark:text-zinc-200 leading-normal">
+                      {act.title}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-550">
+                      {act.time}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* METADATA STATS */}
+          <div className="flex flex-col gap-4 border-t border-zinc-200/80 dark:border-zinc-900/80 pt-6">
+            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-555">
+              Session Summary
+            </h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-[#0c0f19]/30 border border-zinc-200/60 dark:border-zinc-900/60 p-4 rounded-xl flex flex-col gap-1">
+                <span className="text-[9px] font-black text-zinc-450 dark:text-zinc-550 uppercase tracking-widest">Total Rooms</span>
+                <span className="text-xl font-black text-zinc-800 dark:text-white">
+                  <AnimatedCounter value={totalMeetings} />
+                </span>
+              </div>
+              
+              <div className="bg-white dark:bg-[#0c0f19]/30 border border-zinc-200/60 dark:border-zinc-900/60 p-4 rounded-xl flex flex-col gap-1">
+                <span className="text-[9px] font-black text-zinc-450 dark:text-zinc-555 uppercase tracking-widest">Active Live</span>
+                <span className="text-xl font-black text-emerald-500 dark:text-emerald-450">
+                  <AnimatedCounter value={liveMeetings} />
+                </span>
+              </div>
+              
+              <div className="bg-white dark:bg-[#0c0f19]/30 border border-zinc-200/60 dark:border-zinc-900/60 p-4 rounded-xl flex flex-col gap-1 col-span-2">
+                <div className="flex justify-between items-center">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] font-black text-zinc-450 dark:text-zinc-555 uppercase tracking-widest">Invited Whitelist</span>
+                    <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 mt-1">
+                      {totalParticipants} authenticated peers
+                    </span>
+                  </div>
+                  <Shield className="w-5 h-5 text-indigo-400/80" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* Slide-out Create Meeting Drawer Overlay Backdrop */}
+      {isCreateDrawerOpen && (
+        <div 
+          className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-xs z-45"
+          onClick={() => setIsCreateDrawerOpen(false)}
+        />
+      )}
+
+      {/* Slide-out Create Meeting Drawer */}
+      <AnimatePresence>
+        {isCreateDrawerOpen && (
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+            className="fixed right-0 top-0 h-full w-full sm:w-[460px] bg-white dark:bg-[#09090b] border-l border-zinc-200 dark:border-zinc-900 shadow-2xl z-50 p-6 flex flex-col justify-between overflow-y-auto text-left"
+          >
+            <div>
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-zinc-200 dark:border-zinc-900">
+                <div>
+                  <span className="text-[9px] font-black text-indigo-505 dark:text-indigo-400 uppercase tracking-widest font-mono">NeuraMeet Workspace</span>
+                  <h3 className="text-base font-black text-zinc-900 dark:text-white mt-0.5">NEW MEETING</h3>
+                </div>
+                <button
+                  onClick={() => setIsCreateDrawerOpen(false)}
+                  className="p-1.5 rounded-xl hover:bg-zinc-105 dark:hover:bg-zinc-900 text-zinc-400 hover:text-zinc-650 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Drawer Form Body */}
+              <form onSubmit={handleCreateMeeting} className="flex flex-col gap-5 mt-6">
+                
+                {/* Meeting Title */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-extrabold text-zinc-450 dark:text-zinc-400 uppercase tracking-widest">Meeting Title</label>
+                  <div className="relative flex items-center">
+                    <Video className="w-4 h-4 text-zinc-400 absolute left-3.5 pointer-events-none" />
+                    <input 
+                      ref={titleInputRef}
+                      type="text" 
+                      value={meetingTitle}
+                      onChange={(e) => setMeetingTitle(e.target.value)}
+                      placeholder="Title (e.g. Design Sync)" 
+                      className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-800 text-xs rounded-xl text-zinc-950 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Invite Members */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-[10px] font-extrabold text-zinc-455 dark:text-zinc-400 uppercase tracking-widest">Invite Participants</label>
+                  
+                  {/* Selected user chips */}
+                  {inviteesList.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-zinc-50 dark:bg-[#0c0f19]/60 border border-zinc-200 dark:border-zinc-900">
+                      {inviteesList.map((user) => (
+                        <span 
+                          key={user} 
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-55 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/30 text-[10px] text-indigo-700 dark:text-indigo-300 font-bold"
+                        >
+                          @{user}
+                          <button 
+                            type="button" 
+                            onClick={() => handleRemoveInvitee(user)}
+                            className="text-indigo-400 hover:text-indigo-600 ml-1 cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Autocomplete Input */}
+                  <div className="relative w-full flex flex-col gap-1" ref={dropdownRef}>
+                    <div className="relative flex items-center">
+                      <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 pointer-events-none" />
+                      <input 
+                        type="text" 
+                        value={inviteeInput}
+                        onChange={(e) => handleInviteeInputChange(e.target.value)}
+                        onFocus={() => setShowSuggestionsDropdown(suggestions.length > 0)}
+                        placeholder="Type username..." 
+                        className="w-full pl-10 pr-24 py-2.5 bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-800 text-xs rounded-xl text-zinc-950 dark:text-zinc-100 focus:outline-none"
+                      />
+                      
+                      <button 
+                        type="button" 
+                        onClick={handleAddInvitee}
+                        disabled={!inviteeInput.trim()}
+                        className="absolute right-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 border border-zinc-250 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 font-bold text-[10px] rounded-lg disabled:opacity-50 cursor-pointer"
+                      >
+                        Invite
+                      </button>
+                    </div>
+
+                    {/* Autocomplete List */}
+                    {showSuggestionsDropdown && suggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-30 bg-white dark:bg-[#18181B] border border-zinc-350 dark:border-zinc-850 rounded-xl mt-1 max-h-40 overflow-y-auto shadow-xl p-1">
+                        {suggestions.map((name) => (
+                          <div
+                            key={name}
+                            onClick={() => selectSuggestion(name)}
+                            className="px-3 py-2 rounded-lg text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-650 text-zinc-800 dark:text-zinc-200 font-bold cursor-pointer"
+                          >
+                            @{name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {inviteeError && <span className="text-[11px] font-semibold text-rose-500">⚠ {inviteeError}</span>}
+                </div>
+
+                {/* Meeting Options (Instant vs Scheduled) */}
+                <div className="flex flex-col gap-2 border-t border-zinc-100 dark:border-zinc-900 pt-4">
+                  <label className="text-[10px] font-extrabold text-zinc-450 dark:text-zinc-400 uppercase tracking-widest">Meeting Options</label>
+                  
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-zinc-100 dark:bg-[#18181b] rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setIsFutureScheduled(false)}
+                      className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                        !isFutureScheduled
+                          ? 'bg-white dark:bg-zinc-900 shadow-sm text-zinc-800 dark:text-white'
+                          : 'text-zinc-505 dark:text-zinc-500'
+                      }`}
+                    >
+                      Instant
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsFutureScheduled(true)}
+                      className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                        isFutureScheduled
+                          ? 'bg-white dark:bg-zinc-900 shadow-sm text-zinc-800 dark:text-white'
+                          : 'text-zinc-505 dark:text-zinc-500'
+                      }`}
+                    >
+                      Schedule
+                    </button>
+                  </div>
+
+                  {isFutureScheduled && (
+                    <div className="flex flex-col gap-3 mt-2 animate-slide-in">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[9px] font-bold text-zinc-400">Date</span>
+                          <input
+                            type="date"
+                            value={scheduledDate}
+                            onChange={(e) => setScheduledDate(e.target.value)}
+                            className="px-2.5 py-1.5 bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-850 text-xs rounded-lg text-zinc-950 dark:text-zinc-100"
+                            required={isFutureScheduled}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[9px] font-bold text-zinc-400">Time</span>
+                          <input
+                            type="time"
+                            value={scheduledTime}
+                            onChange={(e) => setScheduledTime(e.target.value)}
+                            className="px-2.5 py-1.5 bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-850 text-xs rounded-lg text-zinc-950 dark:text-zinc-100"
+                            required={isFutureScheduled}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[9px] font-bold text-zinc-400">Timezone</span>
                         <select
                           value={timezone}
                           onChange={(e) => setTimezone(e.target.value)}
-                          className="w-full px-3 py-2 bg-white dark:bg-[#18181B] border border-zinc-300 dark:border-zinc-850 text-xs rounded-lg text-zinc-950 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors cursor-pointer font-medium"
+                          className="px-2.5 py-1.5 bg-zinc-50 dark:bg-[#18181B] border border-zinc-200 dark:border-zinc-850 text-xs rounded-lg text-zinc-950 dark:text-zinc-100 cursor-pointer"
                         >
                           {timezones.map((tz) => (
                             <option key={tz.value} value={tz.value}>
@@ -955,451 +1194,83 @@ export default function DashboardPage() {
                         </select>
                       </div>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Section 3: Invite Members with Search Suggestions Autocomplete */}
-              <div className="flex flex-col gap-3 border-t border-zinc-200 dark:border-zinc-900 light:border-zinc-150 pt-5">
-                <label className="text-[10px] font-extrabold text-zinc-400 dark:text-zinc-400 light:text-zinc-650 uppercase tracking-widest">Step 3: Secure Invites</label>
-                
-                {/* Invite Chips List */}
-                {inviteesList.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 p-3.5 rounded-2xl bg-zinc-100/50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-900 animate-slide-in">
-                    {inviteesList.map((user) => (
-                      <span 
-                        key={user} 
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/30 text-[10px] text-indigo-700 dark:text-indigo-300 font-extrabold shadow-sm select-none"
-                      >
-                        @{user}
-                        <button 
-                          type="button" 
-                          onClick={() => handleRemoveInvitee(user)}
-                          className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-indigo-200 dark:hover:bg-indigo-900 hover:text-indigo-900 dark:hover:text-white transition-colors cursor-pointer text-indigo-400"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Invite Autocomplete Dropdown Search Input */}
-                <div className="relative w-full flex flex-col gap-1" ref={dropdownRef}>
-                  <div className="relative flex items-center">
-                    <Search className="w-4 h-4 text-zinc-500 absolute left-3 pointer-events-none" />
-                    <input 
-                      type="text" 
-                      value={inviteeInput}
-                      onChange={(e) => handleInviteeInputChange(e.target.value)}
-                      onFocus={() => setShowSuggestionsDropdown(suggestions.length > 0)}
-                      placeholder="Type username to invite..." 
-                      className="w-full pl-10 pr-24 py-3 bg-white dark:bg-[#18181B] border border-zinc-300 dark:border-zinc-800 text-xs rounded-xl text-zinc-950 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                    />
-                    
-                    {/* Small Secondary Action Button inside input */}
-                    <button 
-                      type="button" 
-                      onClick={handleAddInvitee}
-                      disabled={!inviteeInput.trim()}
-                      className="absolute right-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-850 border border-zinc-350 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 font-bold text-[10px] rounded-lg transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Invite User
-                    </button>
-                  </div>
-
-                  {/* Dropdown Box for Autocomplete suggestions */}
-                  <AnimatePresence>
-                    {showSuggestionsDropdown && suggestions.length > 0 && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full left-0 right-0 z-30 bg-white dark:bg-[#18181B] border border-zinc-300 dark:border-zinc-850 rounded-xl mt-1.5 max-h-48 overflow-y-auto shadow-xl flex flex-col p-1.5"
-                      >
-                        {suggestions.map((name) => (
-                          <div
-                            key={name}
-                            onClick={() => selectSuggestion(name)}
-                            className="px-3.5 py-2.5 rounded-lg text-xs text-zinc-800 dark:text-zinc-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-700 dark:hover:text-indigo-300 font-bold text-left cursor-pointer transition-colors flex items-center justify-between"
-                          >
-                            <span>@{name}</span>
-                            <span className="text-[10px] text-zinc-405 dark:text-zinc-550 uppercase tracking-widest font-extrabold">Registered Peer</span>
-                          </div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  )}
                 </div>
-                {inviteeError && <span className="text-[11px] font-semibold text-rose-500 flex items-center gap-1.5">⚠ {inviteeError}</span>}
+
+                {/* Status Alerts */}
+                {schedulingError && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[11px] font-semibold text-rose-500 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>{schedulingError}</span>
+                  </div>
+                )}
+                {schedulingSuccess && (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                    <span>Meeting Whitelist Registered!</span>
+                  </div>
+                )}
+              </form>
+            </div>
+
+            {/* Security Notice & Actions */}
+            <div className="mt-8 border-t border-zinc-150 dark:border-zinc-900 pt-4 flex flex-col gap-4">
+              <div className="flex items-center gap-2 px-3 py-2 bg-indigo-500/5 border border-indigo-500/10 rounded-xl text-[11px] text-zinc-550 dark:text-zinc-400 leading-normal">
+                <Shield className="w-4 h-4 text-indigo-550 dark:text-indigo-400 shrink-0" />
+                <span><strong>Only invited users</strong> can join this meeting room. No invite links are created.</span>
               </div>
 
-              {/* Status Indicators */}
-              {schedulingError && (
-                <div className="p-3.5 bg-rose-950/20 border border-rose-900/30 rounded-xl text-[11px] font-semibold text-rose-455 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
-                  <span>{schedulingError}</span>
-                </div>
-              )}
-              {schedulingSuccess && (
-                <div className="p-3.5 bg-emerald-950/20 border border-emerald-900/30 rounded-xl text-[11px] font-semibold text-emerald-450 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 shrink-0 text-emerald-500" />
-                  <span>Success! Secure Linkless Meeting created. Invitees notified.</span>
-                </div>
-              )}
-
-              {/* Redesigned 56px Height Primary Rocket CTA Button */}
-              <button 
-                type="submit" 
-                disabled={creatingMeeting}
-                className="w-full h-14 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-650 to-indigo-700 text-white font-black text-sm tracking-wide shadow-lg shadow-indigo-600/10 hover:shadow-indigo-500/30 active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
-              >
-                {creatingMeeting ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Encrypting & Launching Room...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-base select-none">🚀</span>
-                    <span>Create Secure Meeting Room</span>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {/* Right Column: Split Tab Sidebar (Invitations & Hosted Rooms) */}
-        <div className="lg:col-span-1 flex flex-col gap-6 text-left" ref={sidebarContainerRef}>
-          
-          {/* Segmented Tab Switcher */}
-          <div className="grid grid-cols-2 p-1 bg-zinc-900/30 dark:bg-zinc-950/40 light:bg-zinc-150 p-1 rounded-2xl border border-zinc-850 dark:border-zinc-900 light:border-zinc-250 select-none shadow-sm">
-            <button
-              onClick={() => setActiveSidebarTab('invitations')}
-              className={`py-2 rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                activeSidebarTab === 'invitations'
-                  ? 'bg-white dark:bg-zinc-900 light:bg-white text-indigo-500 dark:text-indigo-400 light:text-indigo-700 shadow-sm border border-zinc-200 dark:border-zinc-800'
-                  : 'text-zinc-500 hover:text-zinc-350 light:text-zinc-600 light:hover:text-zinc-800'
-              }`}
-            >
-              <span>📨 Invitations</span>
-              {incomingInvitations.length > 0 && (
-                <span className="px-1.5 py-0.25 bg-indigo-500 text-white text-[9px] rounded-md font-bold">
-                  {incomingInvitations.length}
-                </span>
-              )}
-            </button>
-            
-            <button
-              onClick={() => setActiveSidebarTab('hosted')}
-              className={`py-2 rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                activeSidebarTab === 'hosted'
-                  ? 'bg-white dark:bg-zinc-900 light:bg-white text-indigo-500 dark:text-indigo-400 light:text-indigo-700 shadow-sm border border-zinc-200 dark:border-zinc-800'
-                  : 'text-zinc-500 hover:text-zinc-350 light:text-zinc-600 light:hover:text-zinc-800'
-              }`}
-            >
-              <span>🛡 Hosted Rooms</span>
-              {hostedMeetings.length > 0 && (
-                <span className="px-1.5 py-0.25 bg-zinc-800 text-zinc-400 text-[9px] rounded-md font-bold">
-                  {hostedMeetings.length}
-                </span>
-              )}
-            </button>
-          </div>
-
-          {/* Quick Search filtering input */}
-          <div className="relative flex items-center">
-            <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 pointer-events-none" />
-            <input
-              type="text"
-              value={meetingsSearchQuery}
-              onChange={(e) => setMeetingsSearchQuery(e.target.value)}
-              placeholder={`Filter ${activeSidebarTab}...`}
-              className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#18181B] border border-zinc-300 dark:border-zinc-800 text-xs rounded-full text-zinc-950 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-zinc-450 dark:placeholder:text-zinc-500 shadow-sm"
-            />
-          </div>
-
-          {/* Tab Render Area */}
-          <div className="flex flex-col gap-5 max-h-[850px] overflow-y-auto custom-scrollbar pr-0.5">
-            
-            {activeSidebarTab === 'invitations' ? (
-              /* TAB 1: INVITATIONS FEED */
-              filteredInvitations.length === 0 ? (
-                <div className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 rounded-3xl p-10 text-center flex flex-col items-center justify-center gap-4 shadow-lg">
-                  <EmptyInvitationsIllustration />
-                  <div className="flex flex-col gap-1">
-                    <h4 className="text-base font-bold text-white dark:text-white light:text-zinc-850">No Invitations</h4>
-                    <p className="text-xs text-zinc-400 dark:text-zinc-400 light:text-zinc-500 max-w-[220px] mx-auto leading-relaxed">
-                      When someone invites you to a secure meeting, it will appear here instantly.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                filteredInvitations.map((meeting) => {
-                  const expired = isInvitationExpired(meeting);
-                  return (
-                    <div 
-                      key={meeting.id} 
-                      className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-5 rounded-2xl shadow-lg hover:shadow-xl hover:border-zinc-800 dark:hover:border-zinc-850 light:hover:border-zinc-300 transition-all duration-300 flex flex-col gap-4 text-left relative overflow-hidden"
-                    >
-                      {expired && (
-                        <div className="absolute top-2 right-2 bg-rose-500/10 border border-rose-500/20 text-rose-500 dark:text-rose-455 text-[9px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded">
-                          Expired
-                        </div>
-                      )}
-                      
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={`https://api.dicebear.com/7.x/initials/svg?seed=${meeting.host}`}
-                          alt={meeting.host}
-                          className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800"
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-[10px] text-zinc-500 dark:text-zinc-550 font-bold uppercase tracking-wider">Incoming Invitation</span>
-                          <h4 className="text-sm font-black text-white dark:text-white light:text-zinc-900 mt-0.5 line-clamp-1">{meeting.title}</h4>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-2 pt-3 text-xs text-zinc-400 dark:text-zinc-450 light:text-zinc-550 border-t border-zinc-900 dark:border-zinc-900 light:border-zinc-150">
-                        <span className="flex items-center gap-2">
-                          <User className="w-3.5 h-3.5 text-indigo-500/50" />
-                          <span>Host: <strong className="text-zinc-200 dark:text-zinc-200 light:text-zinc-800">@{meeting.host}</strong></span>
-                        </span>
-                        
-                        {meeting.scheduledAt && (
-                          <span className="flex items-center gap-2">
-                            <Calendar className="w-3.5 h-3.5 text-indigo-500/50" />
-                            <span>Scheduled: <strong className="text-indigo-400">{formatScheduledTime(meeting.scheduledAt)}</strong></span>
-                          </span>
-                        )}
-
-                        <span className="flex items-center gap-2">
-                          <Clock className="w-3.5 h-3.5 text-cyan-500/50" />
-                          <span>Invited: <strong>{getRelativeTime(meeting.createdAt)}</strong></span>
-                        </span>
-
-                        <span className="text-[10px] text-zinc-550 dark:text-zinc-650 font-mono mt-1">
-                          Meeting ID: {meeting.id}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 mt-1">
-                        {!expired ? (
-                          <Link 
-                            href={`/meetings/${meeting.id}`}
-                            className="flex-grow text-center py-2.5 rounded-xl glowing-button text-white text-xs font-bold shadow active:scale-[0.98] transition-all"
-                          >
-                            Join Meeting
-                          </Link>
-                        ) : (
-                          <button 
-                            disabled 
-                            className="flex-grow text-center py-2.5 rounded-xl bg-zinc-900 border border-zinc-850 text-zinc-550 text-xs font-bold cursor-not-allowed"
-                          >
-                            Invitation Expired
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => handleDeleteMeeting(meeting.id)}
-                          className="p-2.5 bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all shrink-0 cursor-pointer active:scale-95"
-                          title="Decline Invitation"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )
-            ) : (
-              /* TAB 2: MY HOSTED ROOMS FEED */
-              filteredHosted.length === 0 ? (
-                <div className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 rounded-3xl p-10 text-center flex flex-col items-center justify-center gap-4 shadow-lg">
-                  <EmptyHostedIllustration />
-                  <div className="flex flex-col gap-1">
-                    <h4 className="text-base font-bold text-white dark:text-white light:text-zinc-850">No Hosted Rooms</h4>
-                    <p className="text-xs text-zinc-400 dark:text-zinc-400 light:text-zinc-500 max-w-[220px] mx-auto leading-relaxed">
-                      Start an instant meeting or schedule a session to host security-controlled rooms.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => titleInputRef.current?.focus()}
-                    className="px-4 py-2 rounded-xl bg-indigo-650 hover:bg-indigo-600 text-white font-extrabold text-[11px] transition-all"
-                  >
-                    Host Room
-                  </button>
-                </div>
-              ) : (
-                filteredHosted.map((meeting) => (
-                  <div 
-                    key={meeting.id} 
-                    className="bg-zinc-950/60 dark:bg-zinc-950/60 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-5 rounded-2xl shadow-lg hover:shadow-xl hover:border-zinc-800 dark:hover:border-zinc-850 light:hover:border-zinc-300 transition-all duration-300 flex flex-col gap-4 text-left group"
-                  >
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className={`text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-md border flex items-center gap-1.5 ${
-                          meeting.status === 'active' 
-                            ? 'bg-emerald-950/60 border-emerald-900 text-emerald-400' 
-                            : meeting.status === 'ended'
-                            ? 'bg-zinc-900 border-zinc-800 text-zinc-400'
-                            : 'bg-indigo-950/60 border-indigo-900 text-indigo-400'
-                        }`}>
-                          {meeting.status === 'active' ? (
-                            <>
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              <span>Live Now</span>
-                            </>
-                          ) : meeting.status === 'ended' ? (
-                            <>
-                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
-                              <span>Ended</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                              <span>Scheduled</span>
-                            </>
-                          )}
-                        </span>
-                        <span className="text-[10px] text-zinc-505 dark:text-zinc-550 light:text-zinc-450 font-mono flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>{getRelativeTime(meeting.createdAt)}</span>
-                        </span>
-                      </div>
-                      
-                      <h4 className="text-base font-extrabold text-white dark:text-white light:text-zinc-850 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors line-clamp-2 mt-1">
-                        {meeting.title}
-                      </h4>
-                      
-                      {/* Strictly Static Meeting ID metadata */}
-                      <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-500 light:text-zinc-600 bg-zinc-900 dark:bg-zinc-900/60 light:bg-zinc-100 border border-zinc-850 dark:border-zinc-850 light:border-zinc-200 px-2 py-0.5 rounded w-max select-text">
-                        Meeting ID: {meeting.id}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col gap-2.5 pt-3 text-xs text-zinc-400 dark:text-zinc-450 light:text-zinc-555 border-t border-zinc-900 dark:border-zinc-900 light:border-zinc-150">
-                      {meeting.scheduledAt && new Date(meeting.scheduledAt).getTime() > Date.now() && meeting.status === 'scheduled' && (
-                        <span className="flex items-center gap-2 text-indigo-400 dark:text-indigo-400 light:text-indigo-650">
-                          <Calendar className="w-3.5 h-3.5" />
-                          <span>Scheduled: <strong className="font-bold text-indigo-300 dark:text-indigo-300 light:text-indigo-750">{formatScheduledTime(meeting.scheduledAt)}</strong></span>
-                        </span>
-                      )}
-                      
-                      <span className="flex items-center gap-2">
-                        <Users className="w-3.5 h-3.5 text-cyan-500/50" />
-                        <span className="flex-grow">Invitees: <strong className="text-zinc-200 dark:text-zinc-200 light:text-zinc-800">{meeting.invitees.length} User(s)</strong></span>
-                        <button
-                          onClick={() => {
-                            if (activeAddMemberId === meeting.id) {
-                              setActiveAddMemberId(null);
-                            } else {
-                              setActiveAddMemberId(meeting.id);
-                              setAddMemberInput('');
-                              setAddMemberError('');
-                              setAddMemberSuccess('');
-                            }
-                          }}
-                          className="p-1 rounded bg-[#09090B] dark:bg-[#09090B] light:bg-zinc-100 border border-zinc-855 dark:border-zinc-850 light:border-zinc-200 hover:bg-zinc-800 dark:hover:bg-zinc-800 light:hover:bg-zinc-200 text-cyan-450 dark:text-cyan-455 light:text-cyan-600 hover:text-cyan-300 transition-all cursor-pointer flex items-center justify-center min-w-[20px] h-[20px]"
-                          title="Add members by username"
-                        >
-                          <UserPlus className="w-3.5 h-3.5" />
-                        </button>
-                      </span>
-
-                      {/* Inline Add Member Form inside the Sidebar Card */}
-                      {activeAddMemberId === meeting.id && (
-                        <form 
-                          onSubmit={(e) => handleAddMemberToMeeting(e, meeting.id)} 
-                          className="flex flex-col gap-2 p-3 bg-zinc-950 dark:bg-[#18181B] light:bg-zinc-50 border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 rounded-xl mt-1 animate-slide-in"
-                        >
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={addMemberInput}
-                              onChange={(e) => setAddMemberInput(e.target.value)}
-                              placeholder="Username..."
-                              className="flex-grow px-2.5 py-1 bg-white dark:bg-[#18181B] border border-zinc-350 dark:border-zinc-800 text-[11px] rounded-lg text-zinc-950 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
-                            />
-                            <button
-                              type="submit"
-                              disabled={addingMemberId === meeting.id}
-                              className="px-3 py-1 bg-indigo-650 hover:bg-indigo-550 text-white rounded-lg text-[11px] font-bold shadow transition-all cursor-pointer disabled:opacity-50"
-                            >
-                              {addingMemberId === meeting.id ? 'Adding...' : 'Add'}
-                            </button>
-                          </div>
-                          {addMemberError && <span className="text-[10px] text-rose-450 font-semibold">⚠ {addMemberError}</span>}
-                          {addMemberSuccess && <span className="text-[10px] text-emerald-450 font-semibold">✓ {addMemberSuccess}</span>}
-                        </form>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 mt-1">
-                      {meeting.status !== 'ended' ? (
-                        <Link 
-                          href={`/meetings/${meeting.id}`}
-                          className="flex-grow text-center py-2.5 rounded-xl glowing-button text-white text-xs font-bold shadow active:scale-[0.98] transition-all"
-                        >
-                          Join Call
-                        </Link>
-                      ) : (
-                        <button 
-                          disabled 
-                          className="flex-grow text-center py-2.5 rounded-xl bg-zinc-900 border border-zinc-850 text-zinc-550 text-xs font-bold cursor-not-allowed"
-                        >
-                          Meeting Closed
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => handleDeleteMeeting(meeting.id)}
-                        className="p-2.5 bg-rose-500/10 border border-rose-500/20 text-rose-455 hover:bg-rose-500 hover:text-white rounded-xl transition-all shrink-0 cursor-pointer active:scale-95"
-                        title="Delete Meeting completely"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )
-            )}
-          </div>
-        </div>
-
-      </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateDrawerOpen(false)}
+                  className="flex-1 py-3 border border-zinc-250 dark:border-zinc-800 rounded-xl text-xs font-bold hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateMeeting}
+                  disabled={creatingMeeting}
+                  className="flex-1 py-3 bg-indigo-650 hover:bg-indigo-600 text-white font-extrabold text-xs rounded-xl shadow-lg disabled:opacity-50 cursor-pointer"
+                >
+                  {creatingMeeting ? 'Creating...' : 'Create Meeting'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Floating WebRTC Live Invitation Alert Card */}
       {activeInvite && (
-        <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm bg-zinc-950 dark:bg-zinc-950 light:bg-white border border-zinc-900 dark:border-zinc-900 light:border-zinc-200 p-5 rounded-2xl shadow-2xl flex flex-col gap-3 animate-slide-in text-left">
+        <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-900 p-5 rounded-2xl shadow-2xl flex flex-col gap-3 animate-slide-in text-left">
           <div className="flex justify-between items-start gap-2">
             <div className="flex flex-col">
-              <span className="text-[9px] uppercase font-bold tracking-widest text-indigo-500 dark:text-indigo-400 light:text-indigo-650 font-mono">Incoming Call Invitation</span>
-              <h4 className="text-sm font-extrabold text-white dark:text-white light:text-zinc-900 mt-1 line-clamp-1">{activeInvite.title}</h4>
+              <span className="text-[9px] uppercase font-bold tracking-widest text-indigo-500 dark:text-indigo-400 font-mono">Incoming Call Invitation</span>
+              <h4 className="text-sm font-extrabold text-zinc-900 dark:text-white mt-1 line-clamp-1">{activeInvite.title}</h4>
             </div>
             <button 
               onClick={() => setActiveInvite(null)}
-              className="text-zinc-500 hover:text-zinc-350 transition-colors p-1 cursor-pointer"
+              className="text-zinc-400 hover:text-zinc-650 transition-colors p-1 cursor-pointer"
               aria-label="Close incoming call invitation"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
-          <p className="text-xs text-zinc-405 dark:text-zinc-400 light:text-zinc-550 leading-relaxed">
-            Host <strong className="text-zinc-200 dark:text-zinc-200 light:text-zinc-800">@{activeInvite.hostUsername}</strong> is inviting you to join this meeting room live.
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed font-semibold">
+            Host <strong className="text-zinc-805 dark:text-zinc-200">@{activeInvite.hostUsername}</strong> is inviting you to join this meeting room live.
           </p>
           <div className="flex gap-3 mt-1">
             <Link 
               href={`/meetings/${activeInvite.meetingId}`}
               onClick={() => setActiveInvite(null)}
-              className="flex-grow text-center py-2 rounded-xl glowing-button text-white text-xs font-bold shadow"
+              className="flex-grow text-center py-2 rounded-xl bg-indigo-650 hover:bg-indigo-600 text-white text-xs font-bold shadow cursor-pointer"
             >
               Join Call
             </Link>
             <button 
               onClick={() => setActiveInvite(null)}
-              className="px-4 py-2 rounded-xl bg-zinc-900 dark:bg-zinc-900 light:bg-zinc-100 border border-zinc-800 dark:border-zinc-850 light:border-zinc-200 text-zinc-450 dark:text-zinc-400 light:text-zinc-650 text-xs font-bold hover:bg-zinc-855 hover:text-white transition-all cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-450 text-xs font-bold hover:bg-zinc-200 hover:text-zinc-905 transition-all cursor-pointer"
             >
               Dismiss
             </button>

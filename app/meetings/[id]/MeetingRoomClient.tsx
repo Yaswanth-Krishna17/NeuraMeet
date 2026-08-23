@@ -73,7 +73,7 @@ export default function MeetingRoomClient({ meeting, username, fullName }: Meeti
   const [screenShareEnabled, setScreenShareEnabled] = useState(false);
 
   // Side panels state (Chat / Participants)
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<'chat' | 'participants'>('chat');
   const [unreadChatCount, setUnreadChatCount] = useState(0);
 

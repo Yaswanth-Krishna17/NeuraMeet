@@ -22,8 +22,13 @@ export default function InvitationsPage() {
   const { socket, invitationsVersion, refreshNotifications } = useDashboardSocket();
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'pending' | 'accepted' | 'declined'>('pending');
   const [selectedInvite, setSelectedInvite] = useState<Invitation | null>(null);
+  
+  const [collapsedGroups, setCollapsedGroups] = useState({
+    pending: false,
+    accepted: false,
+    past: false
+  });
 
   const fetchInvitations = async () => {
     setLoading(true);
@@ -69,223 +74,259 @@ export default function InvitationsPage() {
     }
   };
 
-  const getFilteredInvites = () => {
-    return invitations.filter(inv => {
-      if (activeTab === 'pending') return inv.status === 'pending';
-      if (activeTab === 'accepted') return inv.status === 'accepted';
-      return inv.status === 'declined' || inv.status === 'expired' || inv.status === 'missed';
-    });
+  const getRelativeTime = (dateStr: string) => {
+    try {
+      const ms = new Date().getTime() - new Date(dateStr).getTime();
+      const mins = Math.floor(ms / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      const days = Math.floor(hrs / 24);
+      return `${days}d ago`;
+    } catch (e) {
+      return 'some time ago';
+    }
   };
 
-  const filteredInvites = getFilteredInvites();
-
-  const EmptyInvitationsIllustration = () => (
-    <svg className="w-36 h-36 mx-auto text-indigo-500/20 dark:text-indigo-400/10 mb-4" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="circleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366F1" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#22D3EE" stopOpacity="0.02" />
-        </linearGradient>
-        <linearGradient id="envGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366F1" />
-          <stop offset="100%" stopColor="#22D3EE" />
-        </linearGradient>
-      </defs>
-      <circle cx="100" cy="100" r="75" fill="url(#circleGrad)" />
-      <rect x="60" y="70" width="80" height="60" rx="12" stroke="url(#envGrad)" strokeWidth="2" fill="none" />
-      <path d="M60 82L100 108L140 82" stroke="url(#envGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+  const pendingInvites = invitations.filter(inv => inv.status === 'pending');
+  const acceptedInvites = invitations.filter(inv => inv.status === 'accepted');
+  const pastInvites = invitations.filter(inv => 
+    inv.status === 'declined' || inv.status === 'expired' || inv.status === 'missed'
   );
 
+  const renderInvitationRow = (invite: Invitation) => {
+    const isPending = invite.status === 'pending';
+    const isAccepted = invite.status === 'accepted';
+    
+    return (
+      <div 
+        key={invite.meetingId}
+        className={`group p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+          isPending 
+            ? 'border-indigo-500/35 bg-indigo-500/[0.02] hover:border-indigo-500/50 shadow-sm' 
+            : isAccepted 
+            ? 'border-emerald-500/25 bg-emerald-500/[0.01] hover:border-emerald-500/40 shadow-xs' 
+            : 'border-zinc-200/60 dark:border-zinc-900/60 bg-white/20 dark:bg-zinc-955/[0.02] hover:border-zinc-350 dark:hover:border-zinc-800'
+        }`}
+      >
+        <div className="flex-grow min-w-0 text-left flex items-start gap-3.5">
+          {/* Status color indicator stripe */}
+          <span className={`w-1 h-10 rounded-full shrink-0 ${
+            isPending ? 'bg-indigo-500' : isAccepted ? 'bg-emerald-500' : 'bg-zinc-400'
+          }`} />
+
+          <div className="flex-grow min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="font-extrabold text-sm text-zinc-900 dark:text-white truncate">
+                {invite.meetingTitle}
+              </h4>
+              <span className="text-[10px] text-indigo-650 dark:text-indigo-400 font-extrabold tracking-wide bg-indigo-500/5 px-2 py-0.5 rounded-md font-mono">
+                @{invite.host}
+              </span>
+            </div>
+            
+            <p className="text-xs text-zinc-500 dark:text-zinc-450 mt-1 truncate leading-relaxed">
+              {invite.description || 'No meeting description provided.'}
+            </p>
+            
+            <div className="flex items-center gap-3 mt-2 text-[10px] text-zinc-400 dark:text-zinc-550 font-bold uppercase tracking-wider">
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-zinc-450" />
+                <span>{new Date(invite.scheduledAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+              </span>
+              <span>•</span>
+              <span>Invited {getRelativeTime(invite.createdAt)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+          <button
+            onClick={() => setSelectedInvite(invite)}
+            className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-850 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+            title="View Details"
+          >
+            <Info className="w-3.5 h-3.5" />
+          </button>
+          
+          {isPending && (
+            <>
+              <button
+                onClick={() => handleResponse(invite.meetingId, 'accepted')}
+                className="px-3.5 py-1.5 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-all shadow active:scale-95"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Accept</span>
+              </button>
+              <button
+                onClick={() => handleResponse(invite.meetingId, 'declined')}
+                className="px-3.5 py-1.5 border border-zinc-205 dark:border-zinc-800 hover:bg-rose-500/10 hover:text-rose-500 text-zinc-600 dark:text-zinc-405 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Decline</span>
+              </button>
+            </>
+          )}
+
+          {isAccepted && (
+            <Link
+              href={`/meetings/${invite.meetingId}`}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow shadow-emerald-500/10 active:scale-95"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Join</span>
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="flex flex-col gap-6 select-none max-w-5xl mx-auto">
+    <div className="flex flex-col gap-6 select-none max-w-5xl mx-auto w-full text-left">
       
       {/* Header Info */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-900/80 pb-6">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
-            <Calendar className="w-7 h-7 text-indigo-500" />
-            <span>Invitation Center</span>
+          <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2 uppercase">
+            <Inbox className="w-6 h-6 text-indigo-500" />
+            <span>Invitation Inbox</span>
           </h1>
-          <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1">
-            Real-time secure linkless meeting invitations routed directly to your username.
+          <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1 font-semibold">
+            Real-time secure meeting invitations routed directly to your username binding.
           </p>
         </div>
 
         {/* Security badge */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/20 text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider self-start md:self-auto">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-805 bg-white/50 dark:bg-zinc-950/20 text-[10px] font-extrabold text-indigo-605 dark:text-indigo-400 uppercase tracking-wider self-start sm:self-auto">
           <Shield className="w-3.5 h-3.5" />
-          <span>🔒 Username-Only Invites</span>
+          <span>Username Auth Whitelisted</span>
         </div>
       </div>
 
-      {/* Categories Tabs */}
-      <div className="flex border-b border-zinc-200 dark:border-zinc-900 w-full shrink-0 gap-2">
-        {(['pending', 'accepted', 'declined'] as const).map(tab => {
-          const count = invitations.filter(inv => {
-            if (tab === 'pending') return inv.status === 'pending';
-            if (tab === 'accepted') return inv.status === 'accepted';
-            return inv.status === 'declined' || inv.status === 'expired' || inv.status === 'missed';
-          }).length;
-
-          return (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-xs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer px-4 relative ${
-                activeTab === tab
-                  ? 'border-indigo-500 text-indigo-600 dark:text-white'
-                  : 'border-transparent text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-              }`}
-            >
-              <span>{tab === 'declined' ? 'Past/Declined' : tab}</span>
-              {count > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-[9px] font-bold text-zinc-700 dark:text-zinc-300">
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Invitations List container */}
       {loading ? (
         // Loading Skeletons
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[1, 2, 3, 4].map(idx => (
-            <div key={idx} className="glass-panel p-5 rounded-2xl border border-zinc-200 dark:border-zinc-900 flex flex-col gap-4 animate-pulse">
-              <div className="h-4 bg-zinc-200 dark:bg-zinc-850 rounded w-2/3" />
-              <div className="h-3 bg-zinc-200 dark:bg-zinc-850 rounded w-1/2" />
-              <div className="h-10 bg-zinc-200 dark:bg-zinc-850 rounded-xl w-full" />
-              <div className="flex gap-2 mt-2">
-                <div className="h-9 bg-zinc-200 dark:bg-zinc-850 rounded-xl flex-1" />
-                <div className="h-9 bg-zinc-200 dark:bg-zinc-850 rounded-xl flex-1" />
-              </div>
+        <div className="flex flex-col gap-4">
+          {[1, 2, 3].map(idx => (
+            <div key={idx} className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-900 flex flex-col gap-3 animate-pulse">
+              <div className="h-4 bg-zinc-200 dark:bg-zinc-850 rounded w-1/3" />
+              <div className="h-3 bg-zinc-200 dark:bg-zinc-850 rounded w-2/3" />
             </div>
           ))}
         </div>
-      ) : filteredInvites.length === 0 ? (
-        // Empty State card
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="glass-panel text-center py-16 px-6 border border-zinc-200 dark:border-zinc-900 rounded-3xl bg-white dark:bg-zinc-950/20 max-w-xl mx-auto w-full mt-6"
-        >
-          <EmptyInvitationsIllustration />
-          <h3 className="text-base font-extrabold text-zinc-800 dark:text-white uppercase tracking-wider">
-            No {activeTab} Invitations
-          </h3>
-          <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-2 max-w-sm mx-auto leading-relaxed">
-            There are no invitations currently classified as {activeTab}. When users invite your username, they will appear here in real-time.
-          </p>
-          <Link href="/dashboard" className="inline-flex items-center gap-1.5 mt-6 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black shadow-md transition-all active:scale-98">
-            <span>Go to Dashboard</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </motion.div>
       ) : (
-        // Card Grid
-        <motion.div
-          layout
-          className="grid grid-cols-1 md:grid-cols-2 gap-4"
-        >
-          <AnimatePresence mode="popLayout">
-            {filteredInvites.map(invite => (
-              <motion.div
-                layout
-                key={invite.meetingId}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                className="glass-panel p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-900/80 bg-white dark:bg-[#111827]/40 shadow-md hover:shadow-lg dark:hover:border-zinc-800 transition-all flex flex-col justify-between"
-              >
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-start justify-between">
-                    <h3 className="text-sm font-black text-zinc-800 dark:text-white line-clamp-1">
-                      {invite.meetingTitle}
-                    </h3>
-                    
-                    {/* Status Badge */}
-                    <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${
-                      invite.status === 'pending'
-                        ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
-                        : invite.status === 'accepted'
-                        ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
-                        : 'bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'
-                    }`}>
-                      {invite.status}
-                    </span>
-                  </div>
-
-                  {/* Description */}
-                  {invite.description ? (
-                    <p className="text-xs text-zinc-550 dark:text-zinc-450 line-clamp-2 leading-relaxed text-left">
-                      {invite.description}
-                    </p>
-                  ) : (
-                    <p className="text-xs italic text-zinc-400 dark:text-zinc-650 text-left">
-                      No meeting description provided.
-                    </p>
-                  )}
-
-                  {/* Details row */}
-                  <div className="flex flex-col gap-2 mt-2 bg-zinc-50 dark:bg-zinc-900/40 p-3 rounded-xl border border-zinc-200/50 dark:border-zinc-900/60 text-[10px] text-zinc-600 dark:text-zinc-400">
-                    <div className="flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-indigo-500" />
-                      <span>Host: <strong className="text-zinc-800 dark:text-zinc-200">@{invite.host}</strong></span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                      <span>Scheduled: <strong className="text-zinc-800 dark:text-zinc-200">{new Date(invite.scheduledAt).toLocaleString()}</strong></span>
-                    </div>
-                  </div>
+        <div className="flex flex-col gap-8 w-full mt-2">
+          
+          {/* Group 1: Pending */}
+          <div className="flex flex-col gap-3">
+            <button 
+              onClick={() => setCollapsedGroups(prev => ({ ...prev, pending: !prev.pending }))}
+              className="flex items-center justify-between w-full pb-2 border-b border-zinc-200/80 dark:border-zinc-900/80 text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2 select-none">
+                <span className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-white">
+                  Pending Invitations
+                </span>
+                {pendingInvites.length > 0 ? (
+                  <span className="px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-[10px] font-black uppercase tracking-widest">
+                    {pendingInvites.length} Active
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-400 text-[10px] font-extrabold">
+                    0
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] uppercase font-black tracking-wider text-zinc-450 group-hover:text-zinc-650 transition-colors">
+                {collapsedGroups.pending ? 'Expand' : 'Collapse'}
+              </span>
+            </button>
+            
+            {!collapsedGroups.pending && (
+              pendingInvites.length === 0 ? (
+                <p className="text-xs text-zinc-450 dark:text-zinc-555 italic py-4">No pending invitations found.</p>
+              ) : (
+                <div className="flex flex-col gap-3.5">
+                  {pendingInvites.map(renderInvitationRow)}
                 </div>
+              )
+            )}
+          </div>
 
-                {/* Operations buttons */}
-                <div className="flex gap-2 mt-5">
-                  {invite.status === 'pending' && (
-                    <>
-                      <button
-                        onClick={() => handleResponse(invite.meetingId, 'accepted')}
-                        className="flex-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-wider shadow-sm active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-1"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Accept</span>
-                      </button>
-                      <button
-                        onClick={() => handleResponse(invite.meetingId, 'declined')}
-                        className="flex-1 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 text-[10px] font-black uppercase tracking-wider hover:bg-zinc-50 dark:hover:bg-zinc-900 active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-1"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        <span>Decline</span>
-                      </button>
-                    </>
-                  )}
-
-                  {invite.status === 'accepted' && (
-                    <Link
-                      href={`/meetings/${invite.meetingId}`}
-                      className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider shadow-sm active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-1"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Join Meeting Room</span>
-                    </Link>
-                  )}
-
-                  <button
-                    onClick={() => setSelectedInvite(invite)}
-                    className="px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:bg-zinc-50 dark:hover:bg-zinc-900 active:scale-98 transition-all cursor-pointer"
-                    title="View Invitation Details"
-                  >
-                    <Info className="w-4 h-4" />
-                  </button>
+          {/* Group 2: Accepted */}
+          <div className="flex flex-col gap-3">
+            <button 
+              onClick={() => setCollapsedGroups(prev => ({ ...prev, accepted: !prev.accepted }))}
+              className="flex items-center justify-between w-full pb-2 border-b border-zinc-200/80 dark:border-zinc-900/80 text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2 select-none">
+                <span className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-white">
+                  Accepted Invitations
+                </span>
+                {acceptedInvites.length > 0 ? (
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-widest">
+                    {acceptedInvites.length} Whitelisted
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-400 text-[10px] font-extrabold">
+                    0
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] uppercase font-black tracking-wider text-zinc-450 group-hover:text-zinc-650 transition-colors">
+                {collapsedGroups.accepted ? 'Expand' : 'Collapse'}
+              </span>
+            </button>
+            
+            {!collapsedGroups.accepted && (
+              acceptedInvites.length === 0 ? (
+                <p className="text-xs text-zinc-450 dark:text-zinc-555 italic py-4">No accepted invitations found.</p>
+              ) : (
+                <div className="flex flex-col gap-3.5">
+                  {acceptedInvites.map(renderInvitationRow)}
                 </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </motion.div>
+              )
+            )}
+          </div>
+
+          {/* Group 3: Declined & Expired */}
+          <div className="flex flex-col gap-3">
+            <button 
+              onClick={() => setCollapsedGroups(prev => ({ ...prev, past: !prev.past }))}
+              className="flex items-center justify-between w-full pb-2 border-b border-zinc-200/80 dark:border-zinc-900/80 text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2 select-none">
+                <span className="text-xs font-black uppercase tracking-widest text-zinc-800 dark:text-white">
+                  Past / Declined
+                </span>
+                {pastInvites.length > 0 ? (
+                  <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-450 text-[10px] font-black">
+                    {pastInvites.length} Records
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 text-zinc-400 text-[10px] font-extrabold">
+                    0
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] uppercase font-black tracking-wider text-zinc-450 group-hover:text-zinc-655 transition-colors">
+                {collapsedGroups.past ? 'Expand' : 'Collapse'}
+              </span>
+            </button>
+            
+            {!collapsedGroups.past && (
+              pastInvites.length === 0 ? (
+                <p className="text-xs text-zinc-455 dark:text-zinc-555 italic py-4">No past or declined invitations.</p>
+              ) : (
+                <div className="flex flex-col gap-3.5">
+                  {pastInvites.map(renderInvitationRow)}
+                </div>
+              )
+            )}
+          </div>
+
+        </div>
       )}
 
       {/* View Details Overlay Modal */}
@@ -357,7 +398,7 @@ export default function InvitationsPage() {
                         handleResponse(selectedInvite.meetingId, 'accepted');
                         setSelectedInvite(null);
                       }}
-                      className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-wider shadow-md cursor-pointer active:scale-98 transition-all"
+                      className="flex-1 py-2.5 rounded-xl bg-indigo-650 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-wider shadow-md cursor-pointer active:scale-98 transition-all"
                     >
                       Accept invite
                     </button>
@@ -366,7 +407,7 @@ export default function InvitationsPage() {
                         handleResponse(selectedInvite.meetingId, 'declined');
                         setSelectedInvite(null);
                       }}
-                      className="flex-1 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-850 text-zinc-600 dark:text-zinc-400 text-xs font-black uppercase tracking-wider hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer active:scale-98 transition-all"
+                      className="flex-1 py-2.5 rounded-xl border border-zinc-205 dark:border-zinc-850 text-zinc-600 dark:text-zinc-450 text-xs font-black uppercase tracking-wider hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer active:scale-98 transition-all"
                     >
                       Decline
                     </button>
@@ -383,7 +424,7 @@ export default function InvitationsPage() {
                 )}
                 <button
                   onClick={() => setSelectedInvite(null)}
-                  className="px-5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-650 dark:text-zinc-400 text-xs font-black hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-650 dark:text-zinc-405 text-xs font-black hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all cursor-pointer"
                 >
                   Close
                 </button>

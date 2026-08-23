@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { getMeetingHistoryAction, deleteMeetingAction } from '../actions';
 import { useUser } from '@clerk/nextjs';
 import { 
-  History, Search, Filter, SortAsc, Clipboard, Trash2, Info, ChevronLeft, ChevronRight, X, Clock, Calendar, Shield, Users, Loader2, User 
+  History, Search, Filter, SortAsc, Clipboard, Trash2, Info, ChevronLeft, ChevronRight, X, Clock, Calendar, Shield, Users, Loader2, User, ArrowRight 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 
 interface Attendee {
   username: string;
@@ -107,30 +108,41 @@ export default function MeetingHistoryPage() {
     return `${hrs}h ${mins}m`;
   };
 
-  const EmptyHistoryIllustration = () => (
-    <svg className="w-36 h-36 mx-auto text-indigo-500/20 dark:text-indigo-400/10 mb-4" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="75" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="6 6" className="text-zinc-350 dark:text-zinc-800" />
-      <path d="M100 60V100L125 115" stroke="#6366F1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="100" cy="100" r="8" fill="#22D3EE" opacity="0.4" />
-    </svg>
-  );
+  const getFriendlyDate = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+      
+      if (d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()) {
+        return 'Today';
+      }
+      if (d.getDate() === tomorrow.getDate() && d.getMonth() === tomorrow.getMonth() && d.getFullYear() === tomorrow.getFullYear()) {
+        return 'Tomorrow';
+      }
+      return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    } catch (e) {
+      return 'N/A';
+    }
+  };
 
   return (
-    <div className="flex flex-col gap-6 select-none max-w-6xl mx-auto">
+    <div className="flex flex-col gap-6 select-none max-w-6xl mx-auto w-full text-left">
       
       {/* Header section */}
       <div>
-        <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
-          <History className="w-7 h-7 text-indigo-500" />
-          <span>Meeting History</span>
+        <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2 uppercase">
+          <History className="w-6 h-6 text-indigo-500" />
+          <span>Meetings</span>
         </h1>
-        <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1">
-          Review, filter, and inspect details of all meetings you organized or attended.
+        <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1 font-semibold">
+          Review, filter, and inspect details of all meetings on the whitelist registry.
         </p>
       </div>
 
       {/* Filters, sorting and search container */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-white/40 dark:bg-[#111827]/20 border border-zinc-255/50 dark:border-zinc-900/60 p-4 rounded-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-white/40 dark:bg-[#111827]/20 border border-zinc-250/50 dark:border-zinc-900/60 p-4 rounded-2xl">
         {/* Search */}
         <div className="relative lg:col-span-2">
           <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-zinc-400" />
@@ -201,90 +213,133 @@ export default function MeetingHistoryPage() {
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="glass-panel text-center py-16 px-6 border border-zinc-200 dark:border-zinc-900 rounded-3xl bg-white dark:bg-zinc-950/20 max-w-xl mx-auto w-full mt-6"
+          className="glass-panel text-center py-16 px-6 border border-zinc-200/80 dark:border-zinc-900/80 rounded-3xl bg-white dark:bg-zinc-950/20 max-w-xl mx-auto w-full mt-6"
         >
-          <EmptyHistoryIllustration />
+          <History className="w-12 h-12 text-zinc-400 dark:text-zinc-650 mx-auto mb-4" />
           <h3 className="text-base font-extrabold text-zinc-800 dark:text-white uppercase tracking-wider">
             No Meeting Records
           </h3>
           <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-2 max-w-sm mx-auto leading-relaxed">
-            There are no meeting logs match your filters. Once you participate in or organize rooms, they will show up here.
+            There are no meeting logs matching your filters. Once you participate in or organize rooms, they will show up here.
           </p>
         </motion.div>
       ) : (
         <div className="flex flex-col gap-4">
-          {/* Desktop Table View */}
-          <div className="hidden md:block glass-panel border border-zinc-200 dark:border-zinc-900 bg-white dark:bg-[#111827]/20 rounded-2xl overflow-hidden shadow-sm">
+          
+          {/* Refactored Workspace Table View */}
+          <div className="hidden md:block border border-zinc-200/80 dark:border-zinc-900/80 bg-white dark:bg-[#0c0f19]/25 rounded-2xl overflow-hidden shadow-sm">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-zinc-50 dark:bg-[#111827]/40 border-b border-zinc-200 dark:border-zinc-900 text-zinc-500 font-black uppercase tracking-widest text-[9px]">
-                  <th className="px-5 py-3">Meeting Name</th>
-                  <th className="px-5 py-3">Host</th>
-                  <th className="px-5 py-3">Attendees</th>
-                  <th className="px-5 py-3">Scheduled Date</th>
-                  <th className="px-5 py-3">Duration</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3 text-right">Actions</th>
+                <tr className="bg-zinc-50 dark:bg-[#111827]/40 border-b border-zinc-200 dark:border-zinc-900 text-zinc-400 dark:text-zinc-500 font-black uppercase tracking-widest text-[9px]">
+                  <th className="px-5 py-3.5">Meeting</th>
+                  <th className="px-5 py-3.5">Participants</th>
+                  <th className="px-5 py-3.5">Status</th>
+                  <th className="px-5 py-3.5">Date</th>
+                  <th className="px-5 py-3.5 text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {meetings.map(m => (
-                  <tr key={m.id} className="border-b border-zinc-200/50 dark:border-zinc-900/50 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 text-zinc-700 dark:text-zinc-300 font-semibold transition-colors">
-                    <td className="px-5 py-4 font-bold text-zinc-850 dark:text-white truncate max-w-[200px]" title={m.title}>
-                      {m.title}
-                    </td>
-                    <td className="px-5 py-4 truncate">
-                      @{m.host}
-                    </td>
+                  <tr 
+                    key={m.id} 
+                    className="group border-b border-zinc-200/50 dark:border-zinc-900/50 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 text-zinc-750 dark:text-zinc-300 font-semibold transition-colors"
+                  >
                     <td className="px-5 py-4">
-                      {m.attendees ? m.attendees.length : 0} users
+                      <div className="flex flex-col gap-0.5 text-left">
+                        <span className="font-bold text-zinc-800 dark:text-white group-hover:text-indigo-650 dark:group-hover:text-indigo-400 transition-colors">
+                          {m.title}
+                        </span>
+                        <span className="text-[10px] text-zinc-400 dark:text-zinc-550 font-mono">
+                          ID: {m.id} • Host: @{m.host}
+                        </span>
+                      </div>
                     </td>
+                    
                     <td className="px-5 py-4">
-                      {new Date(m.scheduledAt || m.createdAt).toLocaleDateString()}
+                      <span className="font-bold text-zinc-800 dark:text-zinc-300">
+                        {m.invitees ? m.invitees.length : 0} invited
+                      </span>
                     </td>
+                    
                     <td className="px-5 py-4">
-                      {calculateMeetingDuration(m)}
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
+                      <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
                         m.status === 'ended'
                           ? 'bg-zinc-150 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400'
                           : m.status === 'active'
-                          ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                          ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
                           : m.status === 'cancelled'
-                          ? 'bg-rose-105 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'
-                          : 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
+                          ? 'bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400'
+                          : 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400'
                       }`}>
-                        {m.status}
+                        {m.status === 'active' ? 'Live' : m.status}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-right flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => setSelectedMeeting(m)}
-                        className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer transition-all"
-                        title="View Meeting Details"
-                      >
-                        <Info className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleCopyId(m.id)}
-                        className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer transition-all"
-                        title="Copy Meeting ID"
-                      >
-                        <Clipboard className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteHistory(m.id)}
-                        disabled={actioningId === m.id}
-                        className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-rose-500 dark:hover:text-rose-400 cursor-pointer transition-all disabled:opacity-50"
-                        title="Delete Record"
-                      >
-                        {actioningId === m.id ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    
+                    <td className="px-5 py-4">
+                      <span className="text-zinc-700 dark:text-zinc-400 font-bold">
+                        {getFriendlyDate(m.scheduledAt || m.createdAt)}
+                      </span>
+                    </td>
+                    
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2.5">
+                        {m.status === 'active' ? (
+                          <Link
+                            href={`/meetings/${m.id}`}
+                            className="px-3.5 py-1.5 bg-indigo-650 hover:bg-indigo-600 text-white rounded-lg text-[10px] font-extrabold flex items-center gap-0.5 shadow transition-all active:scale-95 cursor-pointer"
+                          >
+                            <span>Join</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </Link>
+                        ) : m.status === 'scheduled' ? (
+                          <Link
+                            href={`/meetings/${m.id}`}
+                            className="px-3.5 py-1.5 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 rounded-lg text-[10px] font-extrabold flex items-center gap-0.5 border border-zinc-200 dark:border-zinc-800 transition-all hover:bg-zinc-100 dark:hover:bg-zinc-850 cursor-pointer"
+                          >
+                            <span>View</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </Link>
                         ) : (
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <button
+                            onClick={() => setSelectedMeeting(m)}
+                            className="px-3.5 py-1.5 bg-zinc-50 dark:bg-zinc-900 text-zinc-650 dark:text-zinc-400 rounded-lg text-[10px] font-extrabold transition-all border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-850 cursor-pointer"
+                          >
+                            Details
+                          </button>
                         )}
-                      </button>
+                        
+                        {/* Hover Actions Menu */}
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <button
+                            onClick={() => setSelectedMeeting(m)}
+                            className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-450 hover:text-indigo-500 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
+                            title="View Details"
+                          >
+                            <Info className="w-3.5 h-3.5" />
+                          </button>
+                          
+                          <button
+                            onClick={() => handleCopyId(m.id)}
+                            className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-450 hover:text-indigo-500 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
+                            title="Copy Room ID"
+                          >
+                            <Clipboard className="w-3.5 h-3.5" />
+                          </button>
+                          
+                          <button
+                            onClick={() => handleDeleteHistory(m.id)}
+                            disabled={actioningId === m.id}
+                            className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-450 hover:text-rose-500 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors disabled:opacity-50"
+                            title="Delete Whitelist Record"
+                          >
+                            {actioningId === m.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -292,63 +347,78 @@ export default function MeetingHistoryPage() {
             </table>
           </div>
 
-          {/* Mobile Card List View */}
+          {/* Refactored Compact Mobile Cards List View */}
           <div className="md:hidden flex flex-col gap-3.5">
             {meetings.map(m => (
-              <div key={m.id} className="glass-panel p-4 rounded-xl border border-zinc-200 dark:border-zinc-900 bg-white dark:bg-[#111827]/10 flex flex-col gap-3 text-left">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-zinc-850 dark:text-white line-clamp-1">{m.title}</h3>
-                    <p className="text-[10px] text-zinc-450 mt-0.5">Host: @{m.host}</p>
+              <div key={m.id} className="p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-900/80 bg-white dark:bg-[#0c0f19]/30 flex flex-col gap-3.5 text-left shadow-sm">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-zinc-800 dark:text-white truncate text-sm">{m.title}</h3>
+                    <p className="text-[10px] text-zinc-450 dark:text-zinc-550 mt-0.5 font-mono">ID: {m.id} • Host: @{m.host}</p>
                   </div>
                   <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
                     m.status === 'ended'
-                      ? 'bg-zinc-150 dark:bg-zinc-900 text-zinc-650 dark:text-zinc-450'
+                      ? 'bg-zinc-150 dark:bg-zinc-900 text-zinc-650 dark:text-zinc-455'
                       : m.status === 'active'
-                      ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                      ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
                       : m.status === 'cancelled'
-                      ? 'bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'
-                      : 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
+                      ? 'bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400'
+                      : 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-650 dark:text-indigo-400'
                   }`}>
-                    {m.status}
+                    {m.status === 'active' ? 'Live' : m.status}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 py-2 bg-zinc-50 dark:bg-zinc-950/20 p-2.5 rounded-lg text-[10px] text-zinc-550 dark:text-zinc-400 border border-zinc-200/50 dark:border-zinc-900/50">
+                <div className="grid grid-cols-3 gap-2 py-2 bg-zinc-50/50 dark:bg-[#09090b]/40 p-2.5 rounded-xl text-[10px] text-zinc-550 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-900/60">
                   <div>
-                    <span className="block text-[8px] font-black text-zinc-400 uppercase tracking-wider">Date</span>
-                    <strong className="text-zinc-700 dark:text-zinc-300">{new Date(m.scheduledAt || m.createdAt).toLocaleDateString()}</strong>
+                    <span className="block text-[8px] font-black text-zinc-400 dark:text-zinc-550 uppercase tracking-wider">Date</span>
+                    <strong className="text-zinc-700 dark:text-zinc-300 font-bold">{getFriendlyDate(m.scheduledAt || m.createdAt)}</strong>
                   </div>
                   <div>
-                    <span className="block text-[8px] font-black text-zinc-400 uppercase tracking-wider">Duration</span>
-                    <strong className="text-zinc-700 dark:text-zinc-300">{calculateMeetingDuration(m)}</strong>
+                    <span className="block text-[8px] font-black text-zinc-400 dark:text-zinc-550 uppercase tracking-wider">Duration</span>
+                    <strong className="text-zinc-700 dark:text-zinc-300 font-bold">{calculateMeetingDuration(m)}</strong>
                   </div>
                   <div>
-                    <span className="block text-[8px] font-black text-zinc-400 uppercase tracking-wider">Attendees</span>
-                    <strong className="text-zinc-700 dark:text-zinc-300">{m.attendees?.length || 0} users</strong>
+                    <span className="block text-[8px] font-black text-zinc-400 dark:text-zinc-555 uppercase tracking-wider">Invited</span>
+                    <strong className="text-zinc-700 dark:text-zinc-300 font-bold">{m.invitees?.length || 0} users</strong>
                   </div>
                 </div>
 
-                <div className="flex gap-2 justify-end mt-1">
+                <div className="flex gap-2 justify-end items-center">
                   <button
                     onClick={() => setSelectedMeeting(m)}
-                    className="flex-1 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider hover:bg-zinc-50 dark:hover:bg-zinc-900 flex items-center justify-center gap-1 cursor-pointer"
+                    className="flex-grow py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-650 dark:text-zinc-400 text-[10px] font-extrabold uppercase hover:bg-zinc-50 dark:hover:bg-zinc-900 flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <Info className="w-3.5 h-3.5" />
-                    <span>Info</span>
+                    <span>Details</span>
                   </button>
-                  <button
-                    onClick={() => handleCopyId(m.id)}
-                    className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-indigo-500 cursor-pointer"
-                  >
-                    <Clipboard className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteHistory(m.id)}
-                    className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-rose-500 cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  
+                  {m.status === 'active' && (
+                    <Link
+                      href={`/meetings/${m.id}`}
+                      className="flex-grow py-2 rounded-xl bg-indigo-650 hover:bg-indigo-600 text-white text-[10px] font-extrabold uppercase flex items-center justify-center gap-1 cursor-pointer transition-all shadow shadow-indigo-500/10"
+                    >
+                      <span>Join</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  )}
+
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => handleCopyId(m.id)}
+                      className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:text-indigo-500 cursor-pointer transition-colors"
+                      title="Copy ID"
+                    >
+                      <Clipboard className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteHistory(m.id)}
+                      className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:text-rose-500 cursor-pointer transition-colors"
+                      title="Delete Record"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -357,7 +427,7 @@ export default function MeetingHistoryPage() {
           {/* Pagination Controls */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4 px-1">
-              <span className="text-[11px] font-semibold text-zinc-500">
+              <span className="text-[11px] font-semibold text-zinc-550 dark:text-zinc-500">
                 Showing page {page} of {totalPages} ({totalCount} total rooms)
               </span>
               <div className="flex gap-1.5">

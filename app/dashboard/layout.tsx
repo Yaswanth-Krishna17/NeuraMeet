@@ -178,9 +178,9 @@ export default function DashboardLayout({
                   <Calendar className="w-3.5 h-3.5" />
                   <span>Invitations</span>
                 </Link>
-                <Link href="/dashboard/history" className={getLinkClass('/dashboard/history')}>
+                <Link href="/dashboard/meetings" className={getLinkClass('/dashboard/meetings')}>
                   <History className="w-3.5 h-3.5" />
-                  <span>History</span>
+                  <span>Meetings</span>
                 </Link>
                 <Link href="/dashboard/settings" className={getLinkClass('/dashboard/settings')}>
                   <Settings className="w-3.5 h-3.5" />

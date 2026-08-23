@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useDashboardSocket } from '../layout';
 import { getNotificationsAction, markNotificationReadAction, deleteNotificationAction, clearAllNotificationsAction } from '../actions';
-import { Bell, Check, Trash2, Eye, Calendar, Shield, Info, Clock, CheckCheck, Loader2 } from 'lucide-react';
+import { Bell, Check, Trash2, Shield, Info, Clock, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Notification {
@@ -22,7 +22,6 @@ export default function NotificationsPage() {
   const { socket, unreadCount, setUnreadCount, refreshNotifications } = useDashboardSocket();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'invite' | 'system'>('all');
   const [actioningId, setActioningId] = useState<string | null>(null);
 
   const fetchNotifications = async () => {
@@ -67,6 +66,22 @@ export default function NotificationsPage() {
     setActioningId(null);
   };
 
+  const handleMarkAllRead = async () => {
+    const unread = notifications.filter(n => !n.read);
+    if (unread.length === 0) return;
+    setLoading(true);
+    try {
+      await Promise.all(unread.map(n => markNotificationReadAction(n._id)));
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+      refreshNotifications();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     setActioningId(id);
     const res = await deleteNotificationAction(id);
@@ -92,213 +107,185 @@ export default function NotificationsPage() {
     setLoading(false);
   };
 
-  const getFilteredNotifications = () => {
-    return notifications.filter(n => {
-      if (filter === 'all') return true;
-      if (filter === 'unread') return !n.read;
-      if (filter === 'invite') return n.type === 'invite';
-      return n.type === 'system';
+  // Group notifications chronologically
+  const getGroupedNotifications = () => {
+    const today: Notification[] = [];
+    const yesterday: Notification[] = [];
+    const older: Notification[] = [];
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+
+    notifications.forEach(item => {
+      const time = new Date(item.createdAt).getTime();
+      if (time >= todayStart) {
+        today.push(item);
+      } else if (time >= yesterdayStart) {
+        yesterday.push(item);
+      } else {
+        older.push(item);
+      }
     });
+
+    return [
+      { title: 'Today', data: today },
+      { title: 'Yesterday', data: yesterday },
+      { title: 'Older', data: older }
+    ].filter(g => g.data.length > 0);
   };
 
-  const filteredNotifications = getFilteredNotifications();
-
-  // Premium SVG Empty State Illustration
-  const EmptyNotificationsIllustration = () => (
-    <svg className="w-36 h-36 mx-auto text-indigo-500/20 dark:text-indigo-400/10 mb-4" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="bellCircleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366F1" stopOpacity="0.2" />
-          <stop offset="100%" stopColor="#22D3EE" stopOpacity="0.02" />
-        </linearGradient>
-        <linearGradient id="bellGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6366F1" />
-          <stop offset="100%" stopColor="#22D3EE" />
-        </linearGradient>
-      </defs>
-      <circle cx="100" cy="100" r="75" fill="url(#bellCircleGrad)" />
-      <path d="M100 45C85.5 45 75 55.5 75 70V110L60 125V135H140V125L125 110V70C125 55.5 114.5 45 100 45Z" stroke="url(#bellGrad)" strokeWidth="2.5" fill="none" />
-      <path d="M90 145C90 150.5 94.5 155 100 155C105.5 155 110 150.5 110 145" stroke="url(#bellGrad)" strokeWidth="2.5" strokeLinecap="round" />
-    </svg>
-  );
+  const grouped = getGroupedNotifications();
 
   return (
-    <div className="flex flex-col gap-6 select-none max-w-4xl mx-auto">
+    <div className="flex flex-col gap-6 select-none max-w-3xl mx-auto w-full text-left">
       
-      {/* Header operations */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header Info */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-900/80 pb-6">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
-            <Bell className="w-7 h-7 text-indigo-500" />
+          <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white flex items-center gap-2 uppercase">
+            <Bell className="w-6 h-6 text-indigo-500" />
             <span>Notification Center</span>
           </h1>
-          <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1">
-            Stay up to date with real-time invitations, response status changes, and meeting alerts.
+          <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1 font-semibold">
+            {unreadCount > 0 
+              ? `You have ${unreadCount} unread alert${unreadCount === 1 ? '' : 's'}.` 
+              : 'You are all caught up.'}
           </p>
         </div>
 
         {notifications.length > 0 && (
-          <button
-            onClick={handleClearAll}
-            className="px-4 py-2 rounded-xl border border-rose-200 dark:border-rose-950/40 text-rose-600 dark:text-rose-450 hover:bg-rose-50 dark:hover:bg-rose-950/15 text-xs font-black uppercase tracking-wider transition-all self-start sm:self-auto cursor-pointer"
-          >
-            Clear All
-          </button>
+          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllRead}
+                className="px-3.5 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-extrabold uppercase hover:bg-zinc-200 dark:hover:bg-zinc-850 transition-colors cursor-pointer"
+              >
+                Mark as read
+              </button>
+            )}
+            <button
+              onClick={handleClearAll}
+              className="px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-950/40 text-rose-600 dark:text-rose-455 hover:bg-rose-50 dark:hover:bg-rose-950/15 text-xs font-extrabold uppercase transition-colors cursor-pointer"
+            >
+              Clear all
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Categories Tabs Filter */}
-      <div className="flex border-b border-zinc-200 dark:border-zinc-900 w-full shrink-0 gap-2">
-        {(['all', 'unread', 'invite', 'system'] as const).map(tab => {
-          const count = notifications.filter(n => {
-            if (tab === 'all') return true;
-            if (tab === 'unread') return !n.read;
-            if (tab === 'invite') return n.type === 'invite';
-            return n.type === 'system';
-          }).length;
-
-          return (
-            <button
-              key={tab}
-              onClick={() => setFilter(tab)}
-              className={`pb-3 text-xs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer px-4 relative capitalize ${
-                filter === tab
-                  ? 'border-indigo-500 text-indigo-600 dark:text-white'
-                  : 'border-transparent text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-              }`}
-            >
-              <span>{tab}</span>
-              {count > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-[9px] font-bold text-zinc-700 dark:text-zinc-300">
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Notifications List */}
       {loading ? (
         // Skeletons
-        <div className="flex flex-col gap-3">
-          {[1, 2, 3, 4].map(idx => (
-            <div key={idx} className="glass-panel p-4 rounded-xl border border-zinc-200 dark:border-zinc-900 flex items-center justify-between gap-4 animate-pulse">
+        <div className="flex flex-col gap-4">
+          {[1, 2, 3].map(idx => (
+            <div key={idx} className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-900 flex items-center justify-between gap-4 animate-pulse">
               <div className="flex items-center gap-3 w-2/3">
-                <div className="w-9 h-9 bg-zinc-200 dark:bg-zinc-850 rounded-full" />
-                <div className="flex-1 flex flex-col gap-2">
-                  <div className="h-3.5 bg-zinc-200 dark:bg-zinc-850 rounded w-1/2" />
-                  <div className="h-3 bg-zinc-200 dark:bg-zinc-850 rounded w-full" />
+                <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-850 rounded-full" />
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="h-3 bg-zinc-200 dark:bg-zinc-850 rounded w-1/2" />
+                  <div className="h-2.5 bg-zinc-200 dark:bg-zinc-850 rounded w-full" />
                 </div>
               </div>
-              <div className="w-16 h-8 bg-zinc-200 dark:bg-zinc-850 rounded-lg" />
             </div>
           ))}
         </div>
-      ) : filteredNotifications.length === 0 ? (
-        // Empty State card
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="glass-panel text-center py-16 px-6 border border-zinc-200 dark:border-zinc-900 rounded-3xl bg-white dark:bg-zinc-950/20 max-w-xl mx-auto w-full mt-6"
-        >
-          <EmptyNotificationsIllustration />
+      ) : notifications.length === 0 ? (
+        <div className="border border-zinc-200/80 dark:border-zinc-900/80 rounded-3xl p-16 text-center bg-white/20 dark:bg-zinc-955/20 max-w-xl mx-auto w-full mt-6 flex flex-col items-center justify-center gap-3">
+          <Bell className="w-12 h-12 text-zinc-405 dark:text-zinc-650" />
           <h3 className="text-base font-extrabold text-zinc-800 dark:text-white uppercase tracking-wider">
-            All caught up!
+            All Caught Up!
           </h3>
-          <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-2 max-w-sm mx-auto leading-relaxed">
-            There are no notifications matching the "{filter}" filter. You're completely clear.
+          <p className="text-xs text-zinc-555 dark:text-zinc-400 max-w-sm mx-auto leading-relaxed">
+            There are no notifications in your registry. Whitelist updates and security alerts will appear here live.
           </p>
-        </motion.div>
+        </div>
       ) : (
-        // Notifications list items
-        <motion.div
-          layout
-          className="flex flex-col gap-3"
-        >
-          <AnimatePresence mode="popLayout">
-            {filteredNotifications.map(notif => (
-              <motion.div
-                layout
-                key={notif._id}
-                initial={{ opacity: 0, x: -15 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                className={`glass-panel p-4 rounded-xl border transition-all flex items-start sm:items-center justify-between gap-4 text-left ${
-                  notif.read
-                    ? 'bg-white/40 dark:bg-[#111827]/10 border-zinc-200/50 dark:border-zinc-900/50 opacity-80'
-                    : 'bg-white dark:bg-[#111827]/60 border-zinc-200 dark:border-zinc-850 shadow-sm border-l-4 border-l-indigo-500'
-                }`}
-              >
-                <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
-                  {/* Left Icon Badge */}
-                  <div className={`w-9.5 h-9.5 rounded-full flex items-center justify-center shrink-0 ${
-                    notif.read
-                      ? 'bg-zinc-100 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-550'
-                      : 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 dark:text-indigo-400'
-                  }`}>
-                    {notif.type === 'invite' ? (
-                      <Calendar className="w-4.5 h-4.5" />
-                    ) : notif.type === 'system' ? (
-                      <Shield className="w-4.5 h-4.5" />
-                    ) : (
-                      <Info className="w-4.5 h-4.5" />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h4 className={`text-xs truncate ${notif.read ? 'font-semibold text-zinc-550 dark:text-zinc-400' : 'font-extrabold text-zinc-800 dark:text-white'}`}>
-                        {notif.title}
-                      </h4>
-                      {!notif.read && (
-                        <span className="h-1.5 w-1.5 bg-indigo-500 rounded-full shrink-0" />
-                      )}
-                    </div>
-                    <p className="text-[11px] text-zinc-550 dark:text-zinc-400 mt-0.5 line-clamp-2 leading-relaxed">
-                      {notif.message}
-                    </p>
-                    <div className="flex items-center gap-1.5 text-[9px] text-zinc-400 dark:text-zinc-550 mt-1">
-                      <Clock className="w-3 h-3" />
-                      <span>{new Date(notif.createdAt).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Individual Action buttons */}
-                <div className="flex gap-1.5 shrink-0 self-center">
-                  {!notif.read && (
-                    <button
-                      onClick={() => handleMarkRead(notif._id)}
-                      disabled={actioningId === notif._id}
-                      className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-500 hover:text-indigo-500 dark:hover:text-indigo-400 cursor-pointer disabled:opacity-50"
-                      title="Mark as Read"
-                    >
-                      {actioningId === notif._id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <CheckCheck className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleDelete(notif._id)}
-                    disabled={actioningId === notif._id}
-                    className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-zinc-500 hover:text-rose-500 dark:hover:text-rose-400 cursor-pointer disabled:opacity-50"
-                    title="Delete Notification"
+        <div className="flex flex-col gap-8 mt-4 pl-4 select-none relative">
+          
+          {grouped.map((group) => (
+            <div key={group.title} className="flex flex-col gap-5">
+              
+              {/* Chronological Header */}
+              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-555 select-none pb-1 border-b border-zinc-100 dark:border-zinc-900">
+                {group.title}
+              </h3>
+              
+              {/* Timeline nodes connection container */}
+              <div className="relative pl-6 flex flex-col gap-6 before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-[1.5px] before:bg-zinc-200 dark:before:bg-zinc-850">
+                
+                {group.data.map((notif) => (
+                  <div 
+                    key={notif._id} 
+                    className={`group relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border transition-all text-left ${
+                      notif.read 
+                        ? 'border-zinc-200/50 dark:border-zinc-900/50 bg-white/40 dark:bg-zinc-950/[0.01] opacity-75' 
+                        : 'border-indigo-500/20 bg-indigo-500/[0.01] dark:bg-indigo-500/[0.02] hover:border-indigo-500/40 shadow-xs'
+                    }`}
                   >
-                    {actioningId === notif._id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </motion.div>
+                    
+                    {/* Timeline dot node */}
+                    <span className={`absolute -left-[23.5px] top-4.5 w-3 h-3 rounded-full border-2 border-white dark:border-[#09090b] ${
+                      notif.read ? 'bg-zinc-400' : 'bg-indigo-500 animate-pulse'
+                    }`} />
+                    
+                    <div className="flex items-start gap-3 flex-grow min-w-0">
+                      <div className="flex-grow min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className={`text-xs ${notif.read ? 'font-bold text-zinc-700 dark:text-zinc-400' : 'font-extrabold text-zinc-900 dark:text-white'}`}>
+                            {notif.title}
+                          </h4>
+                          {!notif.read && (
+                            <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.25 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                              New
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-450 mt-1 line-clamp-2 leading-relaxed font-semibold">
+                          {notif.message}
+                        </p>
+                        <span className="text-[9px] text-zinc-400 dark:text-zinc-550 font-bold uppercase tracking-wider mt-1.5 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-zinc-400" />
+                          <span>{new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                      {!notif.read && (
+                        <button
+                          onClick={() => handleMarkRead(notif._id)}
+                          disabled={actioningId === notif._id}
+                          className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-405 hover:text-indigo-505 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+                          title="Mark as Read"
+                        >
+                          {actioningId === notif._id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
+                      
+                      <button
+                        onClick={() => handleDelete(notif._id)}
+                        disabled={actioningId === notif._id}
+                        className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-405 hover:text-rose-500 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors cursor-pointer"
+                        title="Delete Alert"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                  </div>
+                ))}
+
+              </div>
+
+            </div>
+          ))}
+
+        </div>
       )}
 
     </div>

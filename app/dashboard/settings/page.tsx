@@ -97,13 +97,27 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex flex-col md:flex-row gap-6 mt-2">
-        {/* Navigation Sidebar Tabs */}
-        <div className="w-full md:w-56 shrink-0 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-x-visible bg-white/40 dark:bg-[#111827]/10 p-2 rounded-2xl border border-zinc-200/50 dark:border-zinc-900/60 self-start">
+        {/* Mobile Dropdown Navigator */}
+        <div className="md:hidden w-full relative">
+          <select
+            value={activeTab}
+            onChange={e => setActiveTab(e.target.value as any)}
+            className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 px-4 py-2.5 rounded-xl text-xs font-bold focus:outline-none cursor-pointer appearance-none"
+          >
+            <option value="general">⚙️ General Settings</option>
+            <option value="meeting">📹 Meeting Settings</option>
+            <option value="privacy">🔒 Privacy Settings</option>
+            <option value="danger">⚠️ Danger Zone</option>
+          </select>
+        </div>
+
+        {/* Desktop Navigation Sidebar Tabs */}
+        <div className="hidden md:flex w-full md:w-56 shrink-0 flex-col gap-1.5 bg-white/40 dark:bg-[#111827]/10 p-2 rounded-2xl border border-zinc-200/50 dark:border-zinc-900/60 self-start">
           <button
             onClick={() => setActiveTab('general')}
             className={`flex items-center gap-2 px-4 py-3 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer w-full text-left shrink-0 ${
               activeTab === 'general'
-                ? 'bg-indigo-600 dark:bg-indigo-650 text-white shadow-lg shadow-indigo-500/10'
+                ? 'bg-indigo-650 text-white shadow-lg shadow-indigo-500/10'
                 : 'text-zinc-550 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-100/50 dark:hover:bg-zinc-900/40'
             }`}
           >
@@ -114,7 +128,7 @@ export default function SettingsPage() {
             onClick={() => setActiveTab('meeting')}
             className={`flex items-center gap-2 px-4 py-3 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer w-full text-left shrink-0 ${
               activeTab === 'meeting'
-                ? 'bg-indigo-600 dark:bg-indigo-650 text-white shadow-lg shadow-indigo-500/10'
+                ? 'bg-indigo-650 text-white shadow-lg shadow-indigo-500/10'
                 : 'text-zinc-550 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-100/50 dark:hover:bg-zinc-900/40'
             }`}
           >
@@ -125,7 +139,7 @@ export default function SettingsPage() {
             onClick={() => setActiveTab('privacy')}
             className={`flex items-center gap-2 px-4 py-3 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer w-full text-left shrink-0 ${
               activeTab === 'privacy'
-                ? 'bg-indigo-600 dark:bg-indigo-650 text-white shadow-lg shadow-indigo-500/10'
+                ? 'bg-indigo-650 text-white shadow-lg shadow-indigo-500/10'
                 : 'text-zinc-550 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-100/50 dark:hover:bg-zinc-900/40'
             }`}
           >
@@ -136,7 +150,7 @@ export default function SettingsPage() {
             onClick={() => setActiveTab('danger')}
             className={`flex items-center gap-2 px-4 py-3 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer w-full text-left shrink-0 ${
               activeTab === 'danger'
-                ? 'bg-rose-600 dark:bg-rose-650 text-white shadow-lg shadow-rose-500/10'
+                ? 'bg-rose-650 text-white shadow-lg shadow-rose-500/10'
                 : 'text-rose-550 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-350 hover:bg-rose-50 dark:hover:bg-rose-955/10'
             }`}
           >
@@ -372,7 +386,7 @@ export default function SettingsPage() {
                     </p>
 
                     <div className="flex flex-col gap-2 mt-2">
-                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-wider">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-wider text-left">
                         Type <strong className="text-rose-600 dark:text-rose-400">delete my account</strong> to unlock deletion
                       </label>
                       <input
@@ -380,8 +394,12 @@ export default function SettingsPage() {
                         placeholder="Type verification phrase..."
                         value={deleteConfirm}
                         onChange={e => setDeleteConfirm(e.target.value)}
-                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 px-3.5 py-2 rounded-xl text-xs focus:outline-none focus:border-rose-500 text-rose-600 dark:text-rose-400 font-bold"
+                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-205 dark:border-zinc-850 px-3.5 py-2 rounded-xl text-xs focus:outline-none focus:border-rose-500 text-rose-605 dark:text-rose-400 font-bold"
                       />
+                      
+                      <div className="text-[10px] font-black text-rose-500 dark:text-rose-400 uppercase tracking-widest border border-dashed border-rose-500/30 p-3.5 rounded-xl bg-rose-500/[0.02] mt-1 text-left leading-normal">
+                        ⚠️ WARNING: This will permanently revoke all Clerk, WebRTC tokens, and Whitelisted DB access.
+                      </div>
                     </div>
 
                     <button

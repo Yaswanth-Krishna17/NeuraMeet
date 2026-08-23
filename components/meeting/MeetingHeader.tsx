@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Settings, Maximize, Minimize, ShieldCheck, Lock, User } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import MeetingInfo from './MeetingInfo';
 import MeetingTimer from './MeetingTimer';
 import ConnectionBadge from './ConnectionBadge';
@@ -28,6 +28,7 @@ export default function MeetingHeader({
   onSettingsClick,
 }: MeetingHeaderProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isSecurityPopoverOpen, setIsSecurityPopoverOpen] = useState(false);
 
   // Sync fullscreen state
   useEffect(() => {
@@ -67,9 +68,61 @@ export default function MeetingHeader({
       <div className="flex items-center gap-2.5">
         
         {/* Security USP Ticker badge */}
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-          <Lock className="w-3.5 h-3.5" />
-          <span>LINKLESS SECURED</span>
+        <div className="relative">
+          <button
+            onClick={() => setIsSecurityPopoverOpen(prev => !prev)}
+            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black tracking-wider bg-emerald-500/10 border border-emerald-500/20 text-emerald-605 dark:text-emerald-405 cursor-pointer hover:bg-emerald-500/20 transition-all select-none active:scale-95"
+            title="Inspect Connection Security"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>LINKLESS SECURED</span>
+          </button>
+          
+          <AnimatePresence>
+            {isSecurityPopoverOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setIsSecurityPopoverOpen(false)}
+                />
+                
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-[#09090b] border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-xl z-20 flex flex-col gap-3 text-left font-semibold text-xs leading-normal select-none"
+                >
+                  <div className="flex items-center gap-1.5 pb-2 border-b border-zinc-150 dark:border-zinc-900 text-zinc-900 dark:text-white font-extrabold text-[11px] uppercase tracking-wide">
+                    <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                    <span>Security Integrity</span>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2 text-zinc-650 dark:text-zinc-400">
+                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                      <span className="text-emerald-500 select-none">✓</span>
+                      <span>Linkless Access</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                      <span className="text-emerald-500 select-none">✓</span>
+                      <span>Identity Verified</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                      <span className="text-emerald-500 select-none">✓</span>
+                      <span>Invite Only</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                      <span className="text-emerald-500 select-none">✓</span>
+                      <span>Encrypted Connection</span>
+                    </div>
+                  </div>
+                  
+                  <p className="text-[10px] text-zinc-400 dark:text-zinc-550 leading-relaxed pt-1.5 border-t border-zinc-100/50 dark:border-zinc-900">
+                    NeuraMeet linkless architecture binds whitelists directly to authenticated User Session IDs.
+                  </p>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
         </div>
 
         <MeetingTimer startTime={startTime} />
