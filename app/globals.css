@@ -10,35 +10,47 @@
 
 
 :root {
-  --background: 240 10% 97.5%; /* F4F4F5 */
-  --foreground: 240 10% 3.9%; /* 09090B */
+  --background: #F5F7FB;
+  --foreground: #111827;
   
-  --card: 0 0% 100%; /* FFFFFF */
-  --card-foreground: 240 10% 3.9%;
+  --card: #FFFFFF;
+  --card-foreground: #111827;
   
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
+  --popover: #FFFFFF;
+  --popover-foreground: #111827;
   
-  --primary: 243 75% 59%;
-  --primary-foreground: 0 0% 100%;
+  --primary: #5B4BDB;
+  --primary-foreground: #FFFFFF;
   
-  --secondary: 240 5.9% 90%;
-  --secondary-foreground: 240 5% 35%;
+  --secondary: #E2E6EF;
+  --secondary-foreground: #64748B;
   
-  --muted: 240 5.9% 90%;
-  --muted-foreground: 240 5% 35%;
+  --muted: #E2E6EF;
+  --muted-foreground: #94A3B8;
   
-  --accent: 240 5.9% 90%;
-  --accent-foreground: 240 10% 3.9%;
+  --accent: #E2E6EF;
+  --accent-foreground: #111827;
   
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 100%;
+  --destructive: #E11D48;
+  --destructive-foreground: #FFFFFF;
   
-  --border: 240 5.9% 88%; /* E4E4E7 */
-  --input: 240 5.9% 88%;
+  --border: #E2E6EF;
+  --input: #E2E6EF;
   
-  --ring: 243 75% 59%;
+  --ring: #5B4BDB;
   --radius: 20px;
+
+  /* Centralized semantic colors */
+  --surface: #FFFFFF;
+  --surface-elevated: #FFFFFF;
+  --text-primary: #111827;
+  --text-secondary: #64748B;
+  --text-muted: #94A3B8;
+  --primary-hover: #4F40C9;
+  --cyan: #0891B2;
+  --success: #059669;
+  --warning: #D97706;
+  --danger: #E11D48;
 
   /* Tailwind Color Inversions for light mode fallback */
   --color-white: #09090B;
@@ -70,34 +82,46 @@
 }
 
 .dark {
-  --background: 240 10% 3.9%;
-  --foreground: 0 0% 100%;
+  --background: #080A0F;
+  --foreground: #F8FAFC;
   
-  --card: 240 5.9% 9%;
-  --card-foreground: 0 0% 100%;
+  --card: #0F121A;
+  --card-foreground: #F8FAFC;
   
-  --popover: 240 5.9% 9%;
-  --popover-foreground: 0 0% 100%;
+  --popover: #0F121A;
+  --popover-foreground: #F8FAFC;
   
-  --primary: 243 75% 59%;
-  --primary-foreground: 0 0% 100%;
+  --primary: #6C63FF;
+  --primary-foreground: #F8FAFC;
   
-  --secondary: 240 5.9% 15%;
-  --secondary-foreground: 240 5% 65%;
+  --secondary: #252B38;
+  --secondary-foreground: #94A3B8;
   
-  --muted: 240 5.9% 15%;
-  --muted-foreground: 240 5% 65%;
+  --muted: #252B38;
+  --muted-foreground: #64748B;
   
-  --accent: 240 5.9% 15%;
-  --accent-foreground: 0 0% 100%;
+  --accent: #252B38;
+  --accent-foreground: #F8FAFC;
   
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 100%;
+  --destructive: #F43F5E;
+  --destructive-foreground: #F8FAFC;
   
-  --border: 240 5.9% 16%;
-  --input: 240 5.9% 16%;
+  --border: #252B38;
+  --input: #252B38;
   
-  --ring: 243 75% 59%;
+  --ring: #6C63FF;
+
+  /* Centralized semantic colors */
+  --surface: #0F121A;
+  --surface-elevated: #151925;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --primary-hover: #7C74FF;
+  --cyan: #22D3EE;
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --danger: #F43F5E;
 
   /* Dark theme colors */
   --color-white: #FFFFFF;
@@ -169,6 +193,18 @@
   --color-landing-text-secondary: var(--landing-text-secondary);
   --color-landing-border: var(--landing-border);
   --color-landing-glow: var(--landing-glow);
+
+  /* Semantic Theme Mappings */
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-primary-text: var(--text-primary);
+  --color-secondary-text: var(--text-secondary);
+  --color-muted-text: var(--text-muted);
+  --color-primary-hover: var(--primary-hover);
+  --color-cyan-custom: var(--cyan);
+  --color-success-custom: var(--success);
+  --color-warning-custom: var(--warning);
+  --color-danger-custom: var(--danger);
 }
 
 body {

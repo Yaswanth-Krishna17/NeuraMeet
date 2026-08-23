@@ -139,8 +139,8 @@ export default function DashboardLayout({
     const isActive = pathname === path || (path !== '/dashboard' && pathname.startsWith(path));
     return `text-[11px] font-black uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all flex items-center gap-1.5 ${
       isActive
-        ? 'bg-indigo-600 dark:bg-indigo-650 text-white shadow-lg shadow-indigo-500/20'
-        : 'text-zinc-550 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-150/40 dark:hover:bg-zinc-900/60'
+        ? 'bg-primary/10 text-primary dark:bg-primary dark:text-white shadow-sm'
+        : 'text-secondary-text hover:text-primary-text hover:bg-zinc-100/50 dark:hover:bg-zinc-900/40'
     }`;
   };
 
@@ -153,23 +153,23 @@ export default function DashboardLayout({
       invitationsVersion,
       triggerInvitationsRefresh
     }}>
-      <div className="min-h-screen bg-stone-150 dark:bg-[#06070B] bg-mesh text-zinc-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
+      <div className="min-h-screen bg-background bg-mesh text-primary-text flex flex-col font-sans transition-colors duration-300">
         
         {/* Navigation header bar */}
-        <nav className="w-full bg-white/70 dark:bg-[#0C0F19]/70 backdrop-blur-xl border-b border-zinc-200/80 dark:border-zinc-900/80 sticky top-0 z-50 select-none">
+        <nav className="w-full bg-surface/80 dark:bg-surface/80 backdrop-blur-xl border-b border-border sticky top-0 z-50 select-none">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-8">
               <Link href="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/10">
+                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-indigo-500/10">
                   <BrainCircuit className="w-4.5 h-4.5 text-white" />
                 </div>
-                <span className="font-black text-base tracking-tight bg-gradient-to-r from-indigo-600 to-cyan-500 dark:from-indigo-200 dark:to-slate-100 bg-clip-text text-transparent">
+                <span className="font-black text-base tracking-tight text-primary-text">
                   NeuraMeet
                 </span>
               </Link>
               
               {/* SaaS Dashboard Section Tabs */}
-              <div className="hidden md:flex items-center gap-1 bg-zinc-100/50 dark:bg-zinc-950/40 p-1 rounded-2xl border border-zinc-200/50 dark:border-zinc-900/60">
+              <div className="hidden md:flex items-center gap-1 bg-zinc-100/50 dark:bg-zinc-900/10 p-1 rounded-2xl border border-border">
                 <Link href="/dashboard" className={getLinkClass('/dashboard')}>
                   <LayoutDashboard className="w-3.5 h-3.5" />
                   <span>Dashboard</span>
@@ -193,7 +193,7 @@ export default function DashboardLayout({
               <ThemeToggle />
               
               {/* Notification icon */}
-              <Link href="/dashboard/notifications" className="relative p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-550 dark:text-zinc-400 dark:hover:text-white transition-all cursor-pointer">
+              <Link href="/dashboard/notifications" className="relative p-2 rounded-xl hover:bg-zinc-100/50 dark:hover:bg-zinc-900/40 text-secondary-text hover:text-primary-text transition-all cursor-pointer">
                 <Bell className="w-4.5 h-4.5" />
                 {unreadCount > 0 && (
                   <span className="absolute top-1 right-1 h-4 w-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-md animate-pulse">
@@ -202,7 +202,7 @@ export default function DashboardLayout({
                 )}
               </Link>
 
-              <div className="w-px h-5 bg-zinc-200 dark:bg-zinc-800" />
+              <div className="w-px h-5 bg-border" />
               <UserButton />
             </div>
           </div>

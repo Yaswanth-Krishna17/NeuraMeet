@@ -691,16 +691,16 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-8 max-w-7xl mx-auto w-full px-1 text-left select-none relative">
       
       {/* Redesigned Simplified Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/80 dark:border-zinc-900/80 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-6">
         <div>
-          <span className="text-[10px] font-extrabold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest flex items-center gap-1.5 font-mono">
-            <Lock className="w-3.5 h-3.5" />
-            <span>Linkless Secure Session Whitelist</span>
+          <span className="text-[10px] font-bold text-muted-text uppercase tracking-widest flex items-center gap-1.5 font-sans">
+            <Lock className="w-3 h-3 text-muted-text" />
+            <span>LINKLESS SESSION</span>
           </span>
-          <h2 className="text-2xl font-black text-zinc-900 dark:text-white mt-1 leading-tight">
+          <h2 className="text-2xl font-black text-primary-text mt-1.5 leading-tight">
             {getGreeting(profile.fullName)}
           </h2>
-          <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1 font-semibold">
+          <p className="text-xs text-secondary-text mt-1 font-semibold">
             {todayMeetings.length > 0 
               ? `You have ${todayMeetings.length} meeting${todayMeetings.length === 1 ? '' : 's'} scheduled for today.`
               : 'No meetings scheduled today.'}
@@ -710,16 +710,16 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <button 
             onClick={fetchMeetings} 
-            className="px-4 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 font-bold text-xs hover:bg-zinc-200 dark:hover:bg-[#18181b] hover:text-zinc-900 dark:hover:text-white transition-all flex items-center gap-2 cursor-pointer shadow active:scale-[0.98]"
+            className="px-4 py-2.5 rounded-xl bg-surface border border-border text-secondary-text hover:text-primary-text hover:bg-zinc-150/20 dark:hover:bg-zinc-900/30 font-bold text-xs transition-all flex items-center gap-2 cursor-pointer active:scale-[0.98]"
             title="Refresh database and sync sockets"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 animate-spin-hover" />
+            <RefreshCw className="w-3.5 h-3.5 text-secondary-text" />
             <span>Sync</span>
           </button>
           
           <button
             onClick={() => setIsCreateDrawerOpen(true)}
-            className="px-5 py-2.5 rounded-xl bg-indigo-655 hover:bg-indigo-600 text-white font-extrabold text-xs shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-extrabold text-xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer border-0"
           >
             <Plus className="w-4 h-4" />
             <span>New Meeting</span>
@@ -732,43 +732,40 @@ export default function DashboardPage() {
         
         {/* Left Column: Today & Upcoming schedule */}
         <div className="lg:col-span-2 flex flex-col gap-8">
-          
-          {/* TODAY Priority section */}
+                   {/* TODAY Priority section */}
           <div className="flex flex-col gap-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-555">
+            <h3 className="text-xs font-black uppercase tracking-widest text-muted-text">
               Today
             </h3>
 
             {nextMeetingToday ? (
-              <div className="relative group overflow-hidden rounded-2xl border border-indigo-500/20 dark:border-indigo-500/35 bg-white dark:bg-[#0c0f19]/40 p-6 shadow-xl shadow-indigo-500/5 transition-all">
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                
+              <div className="relative group overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-sm transition-all select-none">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 text-left">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                      <span className="text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-primary">
                         Next Session
                       </span>
                       
                       {nextMeetingToday.status === 'active' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-455 text-[9.5px] font-black uppercase tracking-wider animate-pulse">
-                          <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-success-custom/10 border border-success-custom/20 text-success-custom text-[9.5px] font-black uppercase tracking-wider animate-pulse">
+                          <span className="w-1.5 h-1.5 bg-success-custom rounded-full animate-ping" />
                           Live Now
                         </span>
                       )}
                       
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-400 dark:text-zinc-550 font-mono">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-muted-text font-mono">
                         ID: {nextMeetingToday.id}
                       </span>
                     </div>
                     
-                    <h4 className="text-lg font-black text-zinc-900 dark:text-white mt-2 truncate">
+                    <h4 className="text-lg font-black text-primary-text mt-2 truncate">
                       {nextMeetingToday.title}
                     </h4>
                     
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 text-xs text-zinc-550 dark:text-zinc-400 font-semibold">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 text-xs text-secondary-text font-semibold">
                       <span className="flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-indigo-500" />
+                        <Clock className="w-4 h-4 text-primary" />
                         <span>
                           {nextMeetingToday.scheduledAt 
                             ? formatScheduledTime(nextMeetingToday.scheduledAt) 
@@ -779,7 +776,7 @@ export default function DashboardPage() {
                       <span>•</span>
                       
                       <span className="flex items-center gap-1.5">
-                        <Users className="w-4 h-4 text-cyan-500" />
+                        <Users className="w-4 h-4 text-cyan-custom" />
                         <span>
                           {nextMeetingToday.invitees.length} Invited
                         </span>
@@ -787,7 +784,7 @@ export default function DashboardPage() {
                       
                       <span>•</span>
                       
-                      <span className="text-indigo-650 dark:text-indigo-400 font-extrabold uppercase tracking-wide flex items-center gap-1">
+                      <span className="text-primary font-extrabold uppercase tracking-wide flex items-center gap-1">
                         <Lock className="w-3.5 h-3.5" />
                         <span>Linkless Secure</span>
                       </span>
@@ -797,7 +794,7 @@ export default function DashboardPage() {
                   <div className="shrink-0">
                     <Link
                       href={`/meetings/${nextMeetingToday.id}`}
-                      className="px-6 py-3 rounded-xl bg-indigo-650 hover:bg-indigo-600 text-white font-extrabold text-xs shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="px-6 py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-extrabold text-xs shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer border-0"
                     >
                       <span>Join Meeting</span>
                       <ArrowRight className="w-4 h-4" />
@@ -806,17 +803,19 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <div className="border border-dashed border-zinc-250 dark:border-zinc-850 rounded-2xl p-8 text-center bg-white/20 dark:bg-zinc-950/5 flex flex-col items-center justify-center gap-4">
-                <Calendar className="w-8 h-8 text-zinc-450 dark:text-zinc-650" />
+              <div className="rounded-2xl border border-border p-8 text-center bg-surface flex flex-col items-center justify-center gap-4 shadow-sm select-none">
+                <Calendar className="w-6 h-6 text-primary" />
                 <div>
-                  <p className="text-xs font-bold text-zinc-700 dark:text-zinc-300">No meetings scheduled today</p>
-                  <p className="text-[11px] text-zinc-450 dark:text-zinc-500 mt-0.5">Use the new meeting drawer to register a session.</p>
+                  <h4 className="text-sm font-extrabold text-primary-text">No meetings today</h4>
+                  <p className="text-xs text-secondary-text mt-1 max-w-xs leading-relaxed font-semibold">
+                    Your schedule is clear. Create a meeting whenever you're ready.
+                  </p>
                 </div>
                 <button
                   onClick={() => setIsCreateDrawerOpen(true)}
-                  className="px-4 py-2 bg-indigo-655 hover:bg-indigo-600 text-white rounded-xl text-[11px] font-extrabold shadow transition-all cursor-pointer"
+                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer border-0"
                 >
-                  Create Meeting
+                  + Create Meeting
                 </button>
               </div>
             )}
@@ -824,37 +823,38 @@ export default function DashboardPage() {
 
           {/* UPCOMING schedule section */}
           <div className="flex flex-col gap-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-555">
+            <h3 className="text-xs font-black uppercase tracking-widest text-muted-text">
               Upcoming
             </h3>
             
             {upcomingMeetings.length === 0 ? (
-              <div className="border border-zinc-200/50 dark:border-zinc-900/50 rounded-2xl p-6 text-center text-xs text-zinc-500 dark:text-zinc-600">
-                No future scheduled meetings.
+              <div className="py-6 text-left select-none">
+                <h4 className="text-xs font-extrabold text-primary-text">No upcoming meetings</h4>
+                <p className="text-xs text-secondary-text mt-0.5 font-semibold">Your next scheduled meeting will appear here.</p>
               </div>
             ) : (
-              <div className="flex flex-col border border-zinc-200/80 dark:border-zinc-900/80 rounded-2xl bg-white dark:bg-[#0c0f19]/20 divide-y divide-zinc-200/60 dark:divide-zinc-900/60 overflow-hidden shadow-sm">
+              <div className="flex flex-col bg-surface border border-border rounded-2xl divide-y divide-border overflow-hidden shadow-sm">
                 {upcomingMeetings.map((meeting) => (
                   <div 
                     key={meeting.id} 
-                    className="group p-4 flex items-center justify-between gap-4 hover:bg-zinc-50 dark:hover:bg-[#111827]/40 transition-colors"
+                    className="group p-4 flex items-center justify-between gap-4 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 transition-colors text-xs"
                   >
-                    <div className="flex-grow min-w-0">
+                    <div className="flex-grow min-w-0 text-left">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-zinc-800 dark:text-white truncate">
+                        <h4 className="text-sm font-extrabold text-primary-text truncate">
                           {meeting.title}
                         </h4>
-                        <span className="text-[9px] font-mono text-zinc-400 dark:text-zinc-550 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-[9px] font-mono text-muted-text opacity-0 group-hover:opacity-100 transition-opacity">
                           ID: {meeting.id}
                         </span>
                       </div>
                       
-                      <div className="flex items-center gap-3 mt-1 text-[11px] text-zinc-500 dark:text-zinc-500">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-secondary-text font-semibold">
                         <span>{meeting.scheduledAt ? formatScheduledTime(meeting.scheduledAt) : ''}</span>
                         <span>•</span>
-                        <span>{meeting.invitees.length} participant{meeting.invitees.length === 1 ? '' : 's'}</span>
+                        <span className="text-cyan-custom font-extrabold">{meeting.invitees.length} participant{meeting.invitees.length === 1 ? '' : 's'}</span>
                         <span>•</span>
-                        <span className="text-indigo-650 dark:text-indigo-400 font-extrabold uppercase tracking-wider text-[9px] flex items-center gap-0.5">
+                        <span className="text-primary font-black uppercase tracking-wider text-[9px] flex items-center gap-0.5">
                           <Lock className="w-2.5 h-2.5" />
                           Linkless
                         </span>
@@ -873,7 +873,7 @@ export default function DashboardPage() {
                             setAddMemberSuccess('');
                           }
                         }}
-                        className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer transition-colors"
+                        className="p-2 rounded-lg border border-border text-secondary-text hover:text-primary-text hover:bg-zinc-150/20 dark:hover:bg-zinc-900/30 cursor-pointer transition-colors"
                         title="Add members by username"
                       >
                         <UserPlus className="w-3.5 h-3.5" />
@@ -881,7 +881,7 @@ export default function DashboardPage() {
 
                       <Link 
                         href={`/meetings/${meeting.id}`}
-                        className="px-3.5 py-1.5 bg-zinc-50 dark:bg-zinc-900 hover:bg-indigo-650 hover:text-white dark:hover:bg-indigo-650 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 font-extrabold text-[10px] rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                        className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover border-0 text-white font-extrabold text-[10px] rounded-lg transition-all flex items-center gap-1 cursor-pointer"
                       >
                         <span>Join</span>
                         <ArrowRight className="w-3 h-3" />
@@ -889,7 +889,7 @@ export default function DashboardPage() {
 
                       <button
                         onClick={() => handleDeleteMeeting(meeting.id)}
-                        className="p-2 border border-zinc-200 dark:border-zinc-800 hover:bg-rose-500/10 hover:text-rose-500 rounded-lg transition-colors text-zinc-400 cursor-pointer"
+                        className="p-2 border border-border hover:bg-rose-500/10 hover:text-danger rounded-lg transition-colors text-secondary-text cursor-pointer"
                         title="Remove Meeting"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -935,73 +935,80 @@ export default function DashboardPage() {
           
           {/* RECENT ACTIVITY Timeline */}
           <div className="flex flex-col gap-4">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-555">
+            <h3 className="text-xs font-black uppercase tracking-widest text-muted-text">
               Recent Activity
             </h3>
             
             {recentActivities.length === 0 ? (
-              <div className="border border-zinc-200/50 dark:border-zinc-900/50 rounded-2xl p-6 text-center text-xs text-zinc-550">
+              <div className="border border-border rounded-2xl p-6 text-center text-xs text-muted-text bg-surface">
                 No recent activity recorded.
               </div>
             ) : (
-              <div className="relative pl-5 flex flex-col gap-6 before:absolute before:left-[4px] before:top-2 before:bottom-2 before:w-[1.5px] before:bg-zinc-200 dark:before:bg-zinc-850">
-                {recentActivities.map((act) => (
-                  <div key={act.id} className="relative flex flex-col gap-1 text-xs">
-                    <span className={`absolute -left-[21px] top-1.5 w-2 h-2 rounded-full border border-white dark:border-[#09090b] ${
-                      act.type === 'create' 
-                        ? 'bg-indigo-500' 
-                        : act.type === 'invite' 
-                        ? 'bg-cyan-400' 
-                        : 'bg-zinc-400'
-                    }`} />
-                    
-                    <span className="font-bold text-zinc-800 dark:text-zinc-200 leading-normal">
-                      {act.title}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 dark:text-zinc-550">
-                      {act.time}
-                    </span>
-                  </div>
-                ))}
+              <div className="relative pl-5 flex flex-col gap-6 before:absolute before:left-[4px] before:top-2 before:bottom-2 before:w-[1.5px] before:bg-border select-none text-left">
+                {recentActivities.map((act, index) => {
+                  const isNewest = index === 0 && (act.time.includes('minute') || act.time.includes('second') || act.time.includes('now'));
+                  return (
+                    <div key={act.id} className="relative flex flex-col gap-1 text-xs">
+                      <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border border-background ${
+                        isNewest 
+                          ? 'bg-primary ring-2 ring-primary/20' 
+                          : 'bg-muted-text'
+                      }`} />
+                      
+                      <span className={`leading-normal ${isNewest ? 'font-bold text-primary-text' : 'font-medium text-secondary-text'}`}>
+                        {act.title}
+                      </span>
+                      <span className="text-[10px] text-muted-text">
+                        {act.time}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* METADATA STATS */}
-          <div className="flex flex-col gap-4 border-t border-zinc-200/80 dark:border-zinc-900/80 pt-6">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-450 dark:text-zinc-555">
-              Session Summary
+          {/* SESSION OVERVIEW METADATA STATS */}
+          <div className="flex flex-col gap-4 border-t border-border pt-6">
+            <h3 className="text-xs font-black uppercase tracking-widest text-muted-text">
+              Meeting Overview
             </h3>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white dark:bg-[#0c0f19]/30 border border-zinc-200/60 dark:border-zinc-900/60 p-4 rounded-xl flex flex-col gap-1">
-                <span className="text-[9px] font-black text-zinc-450 dark:text-zinc-550 uppercase tracking-widest">Total Rooms</span>
-                <span className="text-xl font-black text-zinc-800 dark:text-white">
+            <div className="grid grid-cols-2 gap-4 select-none text-left">
+              <div className="bg-surface border border-border p-4 rounded-xl flex flex-col gap-1 shadow-sm">
+                <span className="text-[9px] font-black text-muted-text uppercase tracking-widest">Total Rooms</span>
+                <span className="text-xl font-black text-primary-text">
                   <AnimatedCounter value={totalMeetings} />
                 </span>
               </div>
               
-              <div className="bg-white dark:bg-[#0c0f19]/30 border border-zinc-200/60 dark:border-zinc-900/60 p-4 rounded-xl flex flex-col gap-1">
-                <span className="text-[9px] font-black text-zinc-450 dark:text-zinc-555 uppercase tracking-widest">Active Live</span>
-                <span className="text-xl font-black text-emerald-500 dark:text-emerald-450">
+              <div className="bg-surface border border-border p-4 rounded-xl flex flex-col gap-1 shadow-sm">
+                <span className="text-[9px] font-black text-muted-text uppercase tracking-widest">Live Now</span>
+                <span className={`text-xl font-black ${liveMeetings > 0 ? 'text-success-custom' : 'text-primary-text'}`}>
                   <AnimatedCounter value={liveMeetings} />
                 </span>
               </div>
               
-              <div className="bg-white dark:bg-[#0c0f19]/30 border border-zinc-200/60 dark:border-zinc-900/60 p-4 rounded-xl flex flex-col gap-1 col-span-2">
+              <div className="bg-surface border border-border p-4 rounded-xl flex flex-col gap-1 col-span-2 shadow-sm">
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[9px] font-black text-zinc-450 dark:text-zinc-555 uppercase tracking-widest">Invited Whitelist</span>
-                    <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 mt-1">
+                    <span className="text-[9px] font-black text-muted-text uppercase tracking-widest">Invited Whitelist</span>
+                    <span className="text-xs font-bold text-secondary-text mt-1">
                       {totalParticipants} authenticated peers
                     </span>
                   </div>
-                  <Shield className="w-5 h-5 text-indigo-400/80" />
+                  <Shield className="w-5 h-5 text-primary" />
                 </div>
+              </div>
+
+              <div className="bg-surface border border-border p-3 rounded-xl col-span-2 flex items-center gap-2.5 text-[11px] text-secondary-text font-semibold shadow-sm">
+                <Shield className="w-4 h-4 text-success-custom shrink-0" />
+                <span>
+                  <strong className="text-primary-text">LINKLESS ACCESS</strong>: Invite-only secure whitelist active.
+                </span>
               </div>
             </div>
           </div>
-
         </div>
 
       </div>
